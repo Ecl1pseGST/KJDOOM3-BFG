@@ -685,3 +685,5 @@ https://discord.gg/Q3E9rUFnnP
 **Q**: How do I open the .resource files?
 **A**: If you install this package you can start the engine, open the console and run exec extract_resources.cfg. This will create a baseref/ folder next to your base/ folder with the indidividual files like .mtr materials or .def entity declarations.
 
+#   K J D O O M 3 - B F G  
+ 
