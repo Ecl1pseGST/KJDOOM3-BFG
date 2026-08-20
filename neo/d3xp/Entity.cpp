@@ -3617,6 +3617,30 @@ bool idEntity::Collide( const trace_t& collision, const idVec3& velocity )
 
 /*
 ================
+idEntity::EnterLiquid
+
+RB: called from idPhysics_Actor::SetWaterLevel when this entity starts touching
+a body of water (or moves to a different one). Base implementation does nothing;
+idActor overrides this to play a splash sound shared by all actors (players and
+monsters alike).
+================
+*/
+void idEntity::EnterLiquid( idEntity* liquidEnt )
+{
+}
+
+/*
+================
+idEntity::ExitLiquid
+================
+*/
+void idEntity::ExitLiquid( idEntity* liquidEnt )
+{
+}
+// RB end
+
+/*
+================
 idEntity::GetImpactInfo
 ================
 */

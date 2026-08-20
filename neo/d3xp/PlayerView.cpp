@@ -50,6 +50,10 @@ idPlayerView::idPlayerView()
 	irGogglesMaterial = declManager->FindMaterial( "textures/decals/irblend" );
 	bloodSprayMaterial = declManager->FindMaterial( "textures/decals/bloodspray" );
 	bfgMaterial = declManager->FindMaterial( "textures/decals/bfgvision" );
+	// RB: underwater screen tint
+	underwaterMaterial = declManager->FindMaterial( "textures/mod/underwater_overlay" );
+	underwaterFade = 0.0f;
+	// RB end
 	bfgVision = false;
 	dvFinishTime = 0;
 	kickFinishTime = 0;
@@ -119,6 +123,9 @@ void idPlayerView::Save( idSaveGame* savefile ) const
 	savefile->WriteMaterial( irGogglesMaterial );
 	savefile->WriteMaterial( bloodSprayMaterial );
 	savefile->WriteMaterial( bfgMaterial );
+	// RB: underwater screen tint
+	savefile->WriteMaterial( underwaterMaterial );
+	// RB end
 	savefile->WriteFloat( lastDamageTime );
 
 	savefile->WriteVec4( fadeColor );
@@ -176,6 +183,10 @@ void idPlayerView::Restore( idRestoreGame* savefile )
 	savefile->ReadMaterial( irGogglesMaterial );
 	savefile->ReadMaterial( bloodSprayMaterial );
 	savefile->ReadMaterial( bfgMaterial );
+	// RB: underwater screen tint
+	savefile->ReadMaterial( underwaterMaterial );
+	underwaterFade = 0.0f;
+	// RB end
 	savefile->ReadFloat( lastDamageTime );
 
 	savefile->ReadVec4( fadeColor );
@@ -512,6 +523,38 @@ void idPlayerView::SingleView( const renderView_t* view, idMenuHandler_HUD* hudM
 			renderSystem->SetColor4( 1.0f, 1.0f, 1.0f, 1.0f - armorPulse );
 			renderSystem->DrawStretchPic( 0.0f, 0.0f, renderSystem->GetVirtualWidth(), renderSystem->GetVirtualHeight(), 0.0f, 0.0f, 1.0f, 1.0f, armorMaterial );
 		}
+
+		// RB: underwater screen tint - ramps in/out based on the player's
+		// current water level rather than snapping instantly, so surfacing/
+		// diving reads as a smooth transition rather than a hard cut
+		{
+			float targetAlpha = ( player->GetWaterLevel() == WATERLEVEL_HEAD ) ? 0.55f : 0.0f;
+			const float fadeSpeed = 2.0f; // alpha units per second
+			float frameTime = MS2SEC( gameLocal.fast.time - gameLocal.fast.previousTime );
+			if( underwaterFade < targetAlpha )
+			{
+				underwaterFade += fadeSpeed * frameTime;
+				if( underwaterFade > targetAlpha )
+				{
+					underwaterFade = targetAlpha;
+				}
+			}
+			else if( underwaterFade > targetAlpha )
+			{
+				underwaterFade -= fadeSpeed * frameTime;
+				if( underwaterFade < targetAlpha )
+				{
+					underwaterFade = targetAlpha;
+				}
+			}
+
+			if( underwaterFade > 0.0f )
+			{
+				renderSystem->SetColor4( 1.0f, 1.0f, 1.0f, underwaterFade );
+				renderSystem->DrawStretchPic( 0.0f, 0.0f, renderSystem->GetVirtualWidth(), renderSystem->GetVirtualHeight(), 0.0f, 0.0f, 1.0f, 1.0f, underwaterMaterial );
+			}
+		}
+		// RB end
 
 
 		// tunnel vision

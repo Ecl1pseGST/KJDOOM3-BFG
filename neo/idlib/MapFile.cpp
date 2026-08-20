@@ -103,146 +103,16 @@ idMapBrushSide::GetTextureVectors
 */
 void idMapBrushSide::GetTextureVectors( idVec4 v[2] ) const
 {
-	if( projection == PROJECTION_VALVE220 )
-	{
-		v[0][0] = texValve[0][0] * ( 1.0f / texScale[0] );
-		v[0][1] = texValve[0][1] * ( 1.0f / texScale[0] );
-		v[0][2] = texValve[0][2] * ( 1.0f / texScale[0] );
-		v[0][3] = texValve[0][3];
-
-		v[1][0] = texValve[1][0] * ( 1.0f / texScale[1] );
-		v[1][1] = texValve[1][1] * ( 1.0f / texScale[1] );
-		v[1][2] = texValve[1][2] * ( 1.0f / texScale[1] );
-		v[1][3] = texValve[1][3];
-	}
-	else
-	{
-		idVec3 texX, texY;
-
-		ComputeAxisBase( plane.Normal(), texX, texY );
-		for( int i = 0; i < 2; i++ )
-		{
-			v[i][0] = texX[0] * texMat[i][0] + texY[0] * texMat[i][1];
-			v[i][1] = texX[1] * texMat[i][0] + texY[1] * texMat[i][1];
-			v[i][2] = texX[2] * texMat[i][0] + texY[2] * texMat[i][1];
-			v[i][3] = texMat[i][2] + ( origin * v[i].ToVec3() );
-		}
-	}
-}
-
-// RB begin
-inline bool BrushPrimitive_Degenerate( const idVec3& bpTexMatX, const idVec3& bpTexMatY )
-{
-	// 2D cross product
-	return ( bpTexMatX[0] * bpTexMatY[1] - bpTexMatX[1] * bpTexMatY[0] ) == 0;
-}
-
-// heavily inspired by Valve220_from_BP from Netradiant-custom
-void idMapBrushSide::ConvertToValve220Format( const idMat4& entityTransform, idStrList& textureCollections )
-{
-	if( projection == idMapBrushSide::PROJECTION_VALVE220 )
-	{
-		return;
-	}
-
-	// from DoomEdit's void BrushPrimit_Parse( brush_t* b, bool newFormat, const idVec3 origin )
-
-	idVec3 origin = entityTransform.GetTranslation();
-
-	idPlane fixedPlane = plane;
-	fixedPlane.FixDegeneracies( DEGENERATE_DIST_EPSILON );
-
-	idWinding w;
-	w.BaseForPlane( fixedPlane );
-
-	for( int j = 0; j < 3; j++ )
-	{
-		planepts[j].x = w[j].x + origin.x;
-		planepts[j].y = w[j].y + origin.y;
-		planepts[j].z = w[j].z + origin.z;
-	}
-
 	idVec3 texX, texY;
 
 	ComputeAxisBase( plane.Normal(), texX, texY );
-
-	texValve[0][0] = texX[0];
-	texValve[0][1] = texX[1];
-	texValve[0][2] = texX[2];
-
-	texValve[1][0] = texY[0];
-	texValve[1][1] = texY[1];
-	texValve[1][2] = texY[2];
-
-	texScale[0] = 1.0f;
-	texScale[1] = 1.0f;
-
-	if( BrushPrimitive_Degenerate( texX, texY ) )
-	{
-		//idLib::Warning( "non orthogonal texture matrix in ConvertToValve220Format" );
-	}
-
-	// rotate initial axes
 	for( int i = 0; i < 2; i++ )
 	{
-		texValve[i][0] = texX[0] * texMat[i][0] + texY[0] * texMat[i][1];
-		texValve[i][1] = texX[1] * texMat[i][0] + texY[1] * texMat[i][1];
-		texValve[i][2] = texX[2] * texMat[i][0] + texY[2] * texMat[i][1];
-		//texValve[i][3] = texMat[i][2] + ( origin * texValve[i].ToVec3() );
-
-		texValve[i][3] = 0;
-		texValve[i].Normalize();
+		v[i][0] = texX[0] * texMat[i][0] + texY[0] * texMat[i][1];
+		v[i][1] = texX[1] * texMat[i][0] + texY[1] * texMat[i][1];
+		v[i][2] = texX[2] * texMat[i][0] + texY[2] * texMat[i][1];
+		v[i][3] = texMat[i][2] + ( origin * v[i].ToVec3() );
 	}
-
-	idMapFile::AddMaterialToCollection( GetMaterial(), textureCollections );
-
-	const idMaterial* material = declManager->FindMaterial( GetMaterial() );
-
-	idImage* image = material->GetEditorImage();
-	if( image != NULL )
-	{
-		texSize.x = image->GetUploadWidth();
-		texSize.y = image->GetUploadHeight();
-	}
-
-	// remove texture dimensions from texMat
-	idVec3 localMat[2];
-	localMat[0] = texMat[0] * texSize.x;
-	localMat[1] = texMat[1] * texSize.y;
-
-	// from DoomEdit TexMatToFakeTexCoords
-	// compute a fake shift scale rot representation from the texture matrix
-	// these shift scale rot values are to be understood in the local axis base
-	texScale[0] = 1.0f / idMath::Sqrt( localMat[0][0] * localMat[0][0] + localMat[1][0] * localMat[1][0] );
-	texScale[1] = 1.0f / idMath::Sqrt( localMat[0][1] * localMat[0][1] + localMat[1][1] * localMat[1][1] );
-
-	if( IsNAN( texScale[0] ) )
-	{
-		texScale[0] = 0.5f;
-	}
-
-	if( IsNAN( texScale[1] ) )
-	{
-		texScale[1] = 0.5f;
-	}
-
-	if( texMat[0][0] < idMath::FLOAT_EPSILON )
-	{
-		texValve[0] = -texValve[0];
-		texScale[0] = -texScale[0];
-	}
-
-	if( texMat[1][0] < idMath::FLOAT_EPSILON )
-	{
-		texValve[1] = -texValve[1];
-		texScale[1] = -texScale[1];
-	}
-
-	// shift
-	texValve[0][3] = localMat[0][2];
-	texValve[1][3] = localMat[1][2];
-
-	projection = idMapBrushSide::PROJECTION_VALVE220;
 }
 
 /*
@@ -698,166 +568,6 @@ idMapBrush* idMapBrush::ParseQ3( idLexer& src, const idVec3& origin )
 }
 
 /*
-=================
-idMapBrush::ParseValve220
-=================
-*/
-idMapBrush* idMapBrush::ParseValve220( idLexer& src, const idVec3& origin )
-{
-	float scale[2], rotate;
-	idVec3 planepts[3];
-	idToken token;
-	idList<idMapBrushSide*> sides;
-	idMapBrushSide*	side;
-	idDict epairs;
-
-	do
-	{
-		if( src.CheckTokenString( "}" ) )
-		{
-			break;
-		}
-
-		side = new( TAG_IDLIB ) idMapBrushSide();
-		sides.Append( side );
-
-		// read the three point plane definition
-		if( !src.Parse1DMatrix( 3, planepts[0].ToFloatPtr() ) ||
-				!src.Parse1DMatrix( 3, planepts[1].ToFloatPtr() ) ||
-				!src.Parse1DMatrix( 3, planepts[2].ToFloatPtr() ) )
-		{
-			src.Error( "idMapBrush::ParseValve220: unable to read brush side plane definition" );
-			sides.DeleteContents( true );
-			return NULL;
-		}
-
-		// backup source points
-		side->planepts[0] = planepts[0];
-		side->planepts[1] = planepts[1];
-		side->planepts[2] = planepts[2];
-
-		planepts[0] -= origin;
-		planepts[1] -= origin;
-		planepts[2] -= origin;
-
-		side->plane.FromPoints( planepts[0], planepts[1], planepts[2] );
-
-		// read the material
-		if( !src.ReadTokenOnLine( &token ) )
-		{
-			src.Error( "idMapBrush::ParseValve220: unable to read brush side material" );
-			sides.DeleteContents( true );
-			return NULL;
-		}
-
-		idToken matPrefix;
-		idToken numberToken;
-		if( token == "*" || token == "+" || token.type == TT_NUMBER )
-		{
-			// RB: try again for Quake 1 maps
-
-			matPrefix = token;
-
-			if( token == "+" )
-			{
-				if( !src.ReadTokenOnLine( &numberToken ) )
-				{
-					src.Error( "idMapBrush::ParseValve220: unable to read brush side material" );
-					sides.DeleteContents( true );
-					return NULL;
-				}
-
-				if( numberToken.type == TT_NUMBER )
-				{
-					if( !src.ReadTokenOnLine( &token ) )
-					{
-						src.Error( "idMapBrush::ParseValve220: unable to read brush side material" );
-						sides.DeleteContents( true );
-						return NULL;
-					}
-				}
-			}
-			else if( !src.ReadTokenOnLine( &token ) )
-			{
-				src.Error( "idMapBrush::ParseValve220: unable to read brush side material" );
-				sides.DeleteContents( true );
-				return NULL;
-			}
-		}
-
-		// we have an implicit 'textures/' in the old format
-		if( numberToken.type == TT_NUMBER )
-		{
-			side->material = "textures/" + numberToken + token;
-		}
-		else
-		{
-			side->material = "textures/" + token;
-		}
-		side->projection = idMapBrushSide::PROJECTION_VALVE220;
-
-		for( int axis = 0; axis < 2; axis++ )
-		{
-			src.ExpectTokenString( "[" );
-
-			for( int comp = 0; comp < 4; comp++ )
-			{
-				side->texValve[axis][comp] = src.ParseFloat();
-			}
-
-			src.ExpectTokenString( "]" );
-		}
-
-		// read the texture rotate and scale
-		rotate = src.ParseFloat();
-
-		scale[0] = src.ParseFloat();
-		scale[1] = src.ParseFloat();
-
-		/*
-		RB: negative values seem to be valid and the q3map2 implementation in netradiant-custom is faulty
-		if( scale[0] < idMath::FLOAT_EPSILON )
-		{
-			scale[0] = 1.0f;
-		}
-		if( scale[1] < idMath::FLOAT_EPSILON )
-		{
-			scale[1] = 1.0f;
-		}
-		*/
-
-		side->texScale[0] = scale[0];
-		side->texScale[1] = scale[1];
-
-		side->texMat[0] = idVec3( 0.03125f, 0.0f, 0.0f );
-		side->texMat[1] = idVec3( 0.0f, 0.03125f, 0.0f );
-		side->origin = origin;
-
-		// Q2 allowed override of default flags and values, but we don't any more
-		if( src.ReadTokenOnLine( &token ) )
-		{
-			if( src.ReadTokenOnLine( &token ) )
-			{
-				if( src.ReadTokenOnLine( &token ) )
-				{
-				}
-			}
-		}
-	}
-	while( 1 );
-
-	idMapBrush* brush = new( TAG_IDLIB ) idMapBrush();
-	for( int i = 0; i < sides.Num(); i++ )
-	{
-		brush->AddSide( sides[i] );
-	}
-
-	brush->epairs = epairs;
-
-	return brush;
-}
-
-/*
 ============
 idMapBrush::Write
 ============
@@ -887,54 +597,6 @@ bool idMapBrush::Write( idFile* fp, int primitiveNum, const idVec3& origin ) con
 	}
 
 	fp->WriteFloatString( " }\n}\n" );
-
-	return true;
-}
-
-/*
-============
-RB idMapBrush::WriteValve220
-============
-*/
-bool idMapBrush::WriteValve220( idFile* fp, int primitiveNum, const idVec3& origin ) const
-{
-	int i;
-	idMapBrushSide* side;
-
-	fp->WriteFloatString( "// brush %d\n{\n", primitiveNum );
-
-	// write brush epairs
-	for( i = 0; i < epairs.GetNumKeyVals(); i++ )
-	{
-		fp->WriteFloatString( "  \"%s\" \"%s\"\n", epairs.GetKeyVal( i )->GetKey().c_str(), epairs.GetKeyVal( i )->GetValue().c_str() );
-	}
-
-	// write brush sides
-	for( i = 0; i < GetNumSides(); i++ )
-	{
-		side = GetSide( i );
-		fp->WriteFloatString( "( %f %f %f ) ( %f %f %f ) ( %f %f %f )",
-							  side->planepts[0][0], side->planepts[0][1], side->planepts[0][2],
-							  side->planepts[1][0], side->planepts[1][1], side->planepts[1][2],
-							  side->planepts[2][0], side->planepts[2][1], side->planepts[2][2] );
-
-		// strip off textures/
-		if( idStr::Icmpn( side->material.c_str(), "textures/", 9 ) == 0 )
-		{
-			fp->WriteFloatString( " %s ", side->material.c_str() + 9 );
-		}
-		else
-		{
-			fp->WriteFloatString( " %s ", side->material.c_str() );
-		}
-
-		fp->WriteFloatString( "[ %f %f %f %f ] [ %f %f %f %f ] 0 %f %f 0 0 0\n",
-							  side->texValve[0][0], side->texValve[0][1], side->texValve[0][2], side->texValve[0][3],
-							  side->texValve[1][0], side->texValve[1][1], side->texValve[1][2], side->texValve[1][3],
-							  side->texScale[0], side->texScale[1] );
-	}
-
-	fp->WriteFloatString( "}\n" );
 
 	return true;
 }
@@ -1142,16 +804,12 @@ idMapEntity* idMapEntity::Parse( idLexer& src, bool worldSpawn, int version )
 				mapEnt->AddPrimitive( mapMesh );
 			}
 			// RB end
-			// assume it's a brush in Valve 220 style from TrenchBroom
+			// unrecognized primitive keyword - no longer silently assume Valve 220 (TrenchBroom) syntax
 			else
 			{
 				src.UnreadToken( &token );
-				mapBrush = idMapBrush::ParseValve220( src, origin );
-				if( !mapBrush )
-				{
-					return NULL;
-				}
-				mapEnt->AddPrimitive( mapBrush );
+				src.Error( "idMapEntity::Parse: unknown primitive type '%s', expected brush/brushDef2/brushDef3, patchDef2/patchDef3, or mesh", token.c_str() );
+				return NULL;
 			}
 		}
 		else
@@ -1200,7 +858,7 @@ idMapEntity* idMapEntity::Parse( idLexer& src, bool worldSpawn, int version )
 idMapEntity::Write
 ============
 */
-bool idMapEntity::Write( idFile* fp, int entityNum, bool valve220 ) const
+bool idMapEntity::Write( idFile* fp, int entityNum ) const
 {
 	int i;
 	idMapPrimitive* mapPrim;
@@ -1228,14 +886,7 @@ bool idMapEntity::Write( idFile* fp, int entityNum, bool valve220 ) const
 		switch( mapPrim->GetType() )
 		{
 			case idMapPrimitive::TYPE_BRUSH:
-				if( valve220 )
-				{
-					static_cast<idMapBrush*>( mapPrim )->WriteValve220( fp, i, origin );
-				}
-				else
-				{
-					static_cast<idMapBrush*>( mapPrim )->Write( fp, i, origin );
-				}
+				static_cast<idMapBrush*>( mapPrim )->Write( fp, i, origin );
 				break;
 			case idMapPrimitive::TYPE_PATCH:
 				static_cast<idMapPatch*>( mapPrim )->Write( fp, i, origin );
@@ -1735,10 +1386,10 @@ bool idMapFile::Parse( const char* filename, bool ignoreRegion, bool osPath, boo
 		}
 		else
 		{
-			// Valve 220 format and idMapEntity::Parse will expect {
+			// no explicit "Version" header found; fall back to the version
+			// already established above (OLD_MAP_VERSION) and let idMapEntity::Parse
+			// error out normally if the primitive syntax that follows isn't recognized
 			src.UnreadToken( &token );
-			valve220Format = true;
-			version = 220;
 		}
 
 		while( 1 )
@@ -1813,7 +1464,7 @@ bool idMapFile::Parse( const char* filename, bool ignoreRegion, bool osPath, boo
 
 		// RB: TrenchBroom interop - especially those created by TrenchBroom and
 		// they also won't be spawned by the gamecode
-		if( entities[0]->epairs.GetBool( "moveFuncGroups" ) || valve220Format )
+		if( entities[0]->epairs.GetBool( "moveFuncGroups" ) )
 		{
 			for( i = 1; i < entities.Num(); i++ )
 			{
@@ -1825,13 +1476,6 @@ bool idMapFile::Parse( const char* filename, bool ignoreRegion, bool osPath, boo
 				}
 			}
 		}
-	}
-
-	if( valve220Format )
-	{
-		// it might be possible that the level designer missed to set the name/model keys to be protected
-		// so the game code would fail to load the map because entities have then the same name
-		FixDuplicatedNamesInGroupInstances();
 	}
 
 	// RB: <name>_extra_ents.map allows to add and override existing entities
@@ -1928,18 +1572,11 @@ bool idMapFile::Write( const char* fileName, const char* ext, bool fromBasePath 
 		return false;
 	}
 
-	if( valve220Format )
-	{
-		fp->WriteFloatString( "// Game: Doom 3 BFG\n// Format: Doom3 (Valve)\n" );
-	}
-	else
-	{
-		fp->WriteFloatString( "Version %d\n", CURRENT_MAP_VERSION );
-	}
+	fp->WriteFloatString( "Version %d\n", CURRENT_MAP_VERSION );
 
 	for( i = 0; i < entities.Num(); i++ )
 	{
-		entities[i]->Write( fp, i, valve220Format );
+		entities[i]->Write( fp, i );
 	}
 
 	idLib::fileSystem->CloseFile( fp );
@@ -2017,14 +1654,7 @@ bool idMapFile::WriteDiff( const idMapFile* otherMap, const char* fileName, cons
 		return false;
 	}
 
-	if( valve220Format )
-	{
-		fp->WriteFloatString( "// Game: Doom 3 BFG\n// Format: Doom3 (Valve)\n" );
-	}
-	else
-	{
-		fp->WriteFloatString( "Version %d\n", CURRENT_MAP_VERSION );
-	}
+	fp->WriteFloatString( "Version %d\n", CURRENT_MAP_VERSION );
 
 	static const char* DELETE_VAL = "";
 
@@ -2451,24 +2081,6 @@ void MapPolygonMesh::ConvertFromBrush( const idMapBrush* mapBrush, int entityNum
 			idVec2 st;
 			st.x = ( xyz * texVec[0].ToVec3() ) + texVec[0][3];
 			st.y = ( xyz * texVec[1].ToVec3() ) + texVec[1][3];
-
-			// support Valve 220 projection
-			if( mapSide->GetProjectionType() == idMapBrushSide::PROJECTION_VALVE220 )
-			{
-				const idMaterial* material = declManager->FindMaterial( mapSide->GetMaterial() );
-
-				idVec2i texSize = mapSide->GetTextureSize();
-
-				idImage* image = material->GetEditorImage();
-				if( image != NULL )
-				{
-					texSize.x = image->GetUploadWidth();
-					texSize.y = image->GetUploadHeight();
-				}
-
-				st.x /= texSize[0];
-				st.y /= texSize[1];
-			}
 
 			// flip y
 			//st.y = 1.0f - st.y;
@@ -3126,453 +2738,6 @@ bool idMapFile::ConvertToPolygonMeshFormat()
 	return true;
 }
 
-bool idMapFile::ConvertToValve220Format( bool recalcPlanePoints )
-{
-	valve220Format = true;
-
-	idDict classTypeOverview;
-	idStrList textureCollections;
-
-	int tbGroupID = 7;
-
-	// just an idea but we can assume that we have no TB groups in the file
-	// because we are calling this command for the original Doom 3 BFG .map files
-	/*
-	idList<int> tbGroupIDs;
-
-	// collect TrenchBroom group IDs
-	for( int j = 0; j < count; j++ )
-	{
-		idMapEntity* ent = GetEntity( j );
-		if( ent )
-		{
-			//idStr classname = ent->epairs.GetString( "classname" );
-			const char* name = ent->epairs.GetString( "classname" );
-			const char* groupType = ent->epairs.GetString( "_tb_type" );
-
-			if( idStr::Icmp( name, "func_group" ) == 0 && ( idStr::Icmp( groupType, "_tb_group" ) == 0 || idStr::Icmp( groupType, "_tb_layer" ) == 0 ) )
-			{
-				int id = ent->epairs.GetInt( "_tb_id", -1 );
-				tbGroupIDs.AddUnique( id );
-			}
-		}
-	}
-	*/
-
-	int count = GetNumEntities();
-	for( int j = 0; j < count; j++ )
-	{
-		idMapEntity* ent = GetEntity( j );
-		if( ent )
-		{
-			idStr classname = ent->epairs.GetString( "classname" );
-
-			// build entity transform
-			idVec3 origin;
-			origin.Zero();
-
-			idMat3 rot;
-			rot.Identity();
-
-			idStr name = ent->epairs.GetString( "name" );
-
-			origin = ent->epairs.GetVector( "origin", "0 0 0" );
-
-			if( !ent->epairs.GetMatrix( "rotation", "1 0 0 0 1 0 0 0 1", rot ) )
-			{
-				idAngles angles;
-
-				if( ent->epairs.GetAngles( "angles", "0 0 0", angles ) )
-				{
-					if( angles.pitch != 0.0f || angles.yaw != 0.0f || angles.roll != 0.0f )
-					{
-						rot = angles.ToMat3();
-					}
-					else
-					{
-						rot.Identity();
-					}
-				}
-				else
-				{
-					float angle = ent->epairs.GetFloat( "angle" );
-					if( angle != 0.0f )
-					{
-						rot = idAngles( 0.0f, angle, 0.0f ).ToMat3();
-					}
-					else
-					{
-						rot.Identity();
-					}
-				}
-			}
-
-			idMat4 transform( rot, origin );
-			//transform.Identity();
-
-			const idKeyValue* modelPair = ent->epairs.FindKey( "model" );
-			idStr model = ent->epairs.GetString( "model" );
-
-			// HACK: convert every old .lwo, .ase model to an .obj proxy model so it can be displayed properly in TrenchBroom
-			// this wouldn't be necessary for Doom 3 but it is for the BFG edition
-			idStr ext;
-			model.ExtractFileExtension( ext );
-
-			if( ext.Icmp( "lwo" ) == 0 || ext.Icmp( "ase" ) == 0 || ext.Icmp( "dae" ) == 0 )
-			{
-				model.SetFileExtension( "obj" );
-				model = "_tb/" + model;
-
-				ent->epairs.Set( "proxymodel", model );
-			}
-
-			bool isBrushModel = ( ent->GetNumPrimitives() > 0 ) && ( idStr::Icmp( model.c_str(), name.c_str() ) == 0 );
-			bool isLight = idStr::Icmp( classname, "light" ) == 0;
-
-			// is this oldschool brushes & patches?
-			if( isBrushModel )
-			{
-				if( isLight )
-				{
-					// we need to split this up into several entities
-					// turn this entity into a func_static and create a separate light and func_group entity
-
-					auto lightEnt = new( TAG_SYSTEM ) idMapEntity();
-					entities.Append( lightEnt );
-
-					// don't grab brushes or polys
-					lightEnt->epairs.Copy( ent->epairs );
-
-					// we can expect "light_origin" and "light_rotation" at this point from DoomEdit
-					// replace them with "origin" and "angles"
-					{
-						idAngles angles;
-						idMat3 mat;
-						if( !ent->epairs.GetMatrix( "light_rotation", "1 0 0 0 1 0 0 0 1", mat ) )
-						{
-							if( !ent->epairs.GetMatrix( "rotation", "1 0 0 0 1 0 0 0 1", mat ) )
-							{
-								// RB: light_angles is specific for lights that have been modified by the editLights command
-								// these lights have a static model and are not proper grouped using func_group
-								if( ent->epairs.GetAngles( "light_angles", "0 0 0", angles ) )
-								{
-									angles[ 0 ] = idMath::AngleNormalize360( angles[ 0 ] );
-									angles[ 1 ] = idMath::AngleNormalize360( angles[ 1 ] );
-									angles[ 2 ] = idMath::AngleNormalize360( angles[ 2 ] );
-
-									mat = angles.ToMat3();
-								}
-								// RB: TrenchBroom interop
-								// support "angles" like in Quake 3
-								else if( ent->epairs.GetAngles( "angles", "0 0 0", angles ) )
-								{
-									angles[ 0 ] = idMath::AngleNormalize360( angles[ 0 ] );
-									angles[ 1 ] = idMath::AngleNormalize360( angles[ 1 ] );
-									angles[ 2 ] = idMath::AngleNormalize360( angles[ 2 ] );
-
-									mat = angles.ToMat3();
-								}
-								else
-								{
-									ent->epairs.GetFloat( "angle", "0", angles[ 1 ] );
-									angles[ 0 ] = 0;
-									angles[ 1 ] = idMath::AngleNormalize360( angles[ 1 ] );
-									angles[ 2 ] = 0;
-									mat = angles.ToMat3();
-								}
-							}
-						}
-
-						// fix degenerate identity matrices
-						mat[0].FixDegenerateNormal();
-						mat[1].FixDegenerateNormal();
-						mat[2].FixDegenerateNormal();
-
-						lightEnt->epairs.Delete( "light_rotation" );
-						lightEnt->epairs.Delete( "light_angles" );
-						lightEnt->epairs.Delete( "angle" );
-						lightEnt->epairs.Delete( "model" );
-
-						angles = mat.ToAngles();
-						lightEnt->epairs.SetAngles( "angles", angles );
-
-						idVec3 lightOrigin = ent->epairs.GetVector( "light_origin", "0 0 0" );
-						lightEnt->epairs.SetVector( "origin", lightOrigin );
-						lightEnt->epairs.Delete( "light_origin" );
-
-						lightEnt->epairs.SetInt( "_tb_group", tbGroupID );
-					}
-
-					// turn this entity into a func_static and give it a new unique name
-					ent->epairs.Set( "classname", "func_static" );
-					idStr uniqueName = GetUniqueEntityName( "light_model" );
-
-					ent->epairs.Set( "name", uniqueName );
-					ent->epairs.Set( "model", uniqueName );
-
-					// link idLight to func_static entity for syncing color/broken model using new modelTarget key
-					lightEnt->epairs.Set( "modelTarget", uniqueName );
-					ent->epairs.SetInt( "_tb_group", tbGroupID );
-
-					// strip any light specific data
-					ent->epairs.Delete( "light_origin" );
-					ent->epairs.Delete( "light_rotation" );
-					ent->epairs.Delete( "light_radius" );
-					ent->epairs.Delete( "light_center" );
-					ent->epairs.Delete( "angles" );
-					ent->epairs.Delete( "angle" );
-					ent->epairs.Delete( "noshadows" );
-					ent->epairs.Delete( "nodiffuse" );
-					ent->epairs.Delete( "nospecular" );
-					ent->epairs.Delete( "falloff" );
-					ent->epairs.Delete( "texture" );
-
-					// add group entity
-					auto groupEnt = new( TAG_SYSTEM ) idMapEntity();
-					entities.Append( groupEnt );
-
-					groupEnt->epairs.Set( "classname", "func_group" );
-					uniqueName = GetUniqueEntityName( "light_group" );
-					groupEnt->epairs.Set( "name", uniqueName );
-					groupEnt->epairs.Set( "_tb_name", uniqueName );
-					groupEnt->epairs.Set( "_tb_type", "_tb_group" );
-					groupEnt->epairs.SetInt( "_tb_id", tbGroupID );
-
-					tbGroupID++;
-				}
-
-				bool removedOrigin = false;
-				if( !transform.IsIdentity() ) //&& !isLight )
-				{
-					ent->epairs.Delete( "origin" );
-					ent->epairs.Delete( "rotation" );
-					ent->epairs.Delete( "angles" );
-					ent->epairs.Delete( "angle" );
-
-					removedOrigin = true;
-				}
-
-				// convert brushes
-				for( int i = 0; i < ent->GetNumPrimitives(); i++ )
-				{
-					idMapPrimitive*	mapPrim;
-
-					mapPrim = ent->GetPrimitive( i );
-					if( mapPrim->GetType() == idMapPrimitive::TYPE_BRUSH )
-					{
-						idMapBrush* brushPrim = static_cast<idMapBrush*>( mapPrim );
-						for( int s = 0; s < brushPrim->GetNumSides(); s++ )
-						{
-							idMapBrushSide* side = brushPrim->GetSide( s );
-							side->ConvertToValve220Format( transform, textureCollections );
-						}
-
-						// RB: this shouldn't necessary but the initial plane definitions are at the border of the max world size
-						// so with this function we get sane values that are within the brush boundaries
-						if( recalcPlanePoints )
-						{
-							brushPrim->SetPlanePointsFromWindings( transform.GetTranslation(), j, i );
-						}
-					}
-					else if( mapPrim->GetType() == idMapPrimitive::TYPE_PATCH )
-					{
-						idMapPatch* patch = static_cast<idMapPatch*>( mapPrim );
-						idMapFile::AddMaterialToCollection( patch->GetMaterial(), textureCollections );
-					}
-				}
-
-				// add origin brush as a replacement for the removed "origin" key
-				if( removedOrigin && ( origin != vec3_origin ) )
-				{
-					idMapBrush* originBrush = idMapBrush::MakeOriginBrush( origin, vec3_one );
-					ent->AddPrimitive( originBrush );
-
-					//ent->CalculateBrushOrigin();
-					ent->originOffset = origin;
-				}
-
-				// collect some statistics
-
-				const idKeyValue* kv = classTypeOverview.FindKey( classname );
-				if( kv && kv->GetValue().Length() )
-				{
-					if( idStr::Icmp( kv->GetValue().c_str(), "PointClass" ) == 0 && idStr::Icmp( kv->GetValue().c_str(), "Mixed" ) != 0 )
-					{
-						classTypeOverview.Set( classname, "Mixed" );
-					}
-				}
-				else
-				{
-					classTypeOverview.Set( classname, "BrushClass" );
-				}
-			}
-			else
-			{
-				// just a regular entity
-
-				// TrenchBroom doesn't allow models for SolidClasses so use helper classes instead
-				if( idStr::Icmp( classname, "func_static" ) == 0 && idStr::Icmp( model.c_str(), classname.c_str() ) != 0 )
-				{
-					ent->epairs.Set( "classname", "misc_model" );
-				}
-				else if( idStr::Icmp( classname, "func_bobbing" ) == 0 && idStr::Icmp( model.c_str(), classname.c_str() ) != 0 )
-				{
-					ent->epairs.Set( "classname", "func_bobbing_model" );
-				}
-				else if( idStr::Icmp( classname, "func_door" ) == 0 && idStr::Icmp( model.c_str(), classname.c_str() ) != 0 )
-				{
-					ent->epairs.Set( "classname", "func_door_model" );
-				}
-				else if( idStr::Icmp( classname, "func_elevator" ) == 0 && idStr::Icmp( model.c_str(), classname.c_str() ) != 0 )
-				{
-					ent->epairs.Set( "classname", "func_elevator_model" );
-				}
-				else if( idStr::Icmp( classname, "func_mover" ) == 0 && idStr::Icmp( model.c_str(), classname.c_str() ) != 0 )
-				{
-					ent->epairs.Set( "classname", "func_mover_amodel" );
-				}
-				else if( idStr::Icmp( classname, "func_rotating" ) == 0 && idStr::Icmp( model.c_str(), classname.c_str() ) != 0 )
-				{
-					ent->epairs.Set( "classname", "func_rotating_model" );
-				}
-				else if( idStr::Icmp( classname, "func_plat" ) == 0 && idStr::Icmp( model.c_str(), classname.c_str() ) != 0 )
-				{
-					ent->epairs.Set( "classname", "func_plat_model" );
-				}
-
-				// replace "rotation" with angles because it is not supported by TrenchBroom
-				if( ent->epairs.FindKey( "rotation" ) )
-				{
-					ent->epairs.Delete( "rotation" );
-
-					idAngles angles = rot.ToAngles();
-					ent->epairs.SetAngles( "angles", angles );
-				}
-
-				const idKeyValue* kv = classTypeOverview.FindKey( classname );
-				if( kv && kv->GetValue().Length() )
-				{
-					if( idStr::Icmp( kv->GetValue().c_str(), "BrushClass" ) == 0 && idStr::Icmp( kv->GetValue().c_str(), "Mixed" ) != 0 )
-					{
-						classTypeOverview.Set( classname, "Mixed" );
-					}
-				}
-				else
-				{
-					classTypeOverview.Set( classname, "PointClass" );
-				}
-			}
-		}
-	}
-
-	idMapEntity* worldspawn = GetEntity( 0 );
-	if( worldspawn )
-	{
-		//worldspawn->epairs.Set( "_tb_textures", "textures/common;textures/editor;textures/decals;textures/decals2" );
-
-		idStr list;
-		for( int i = 0; i < textureCollections.Num(); i++ )
-		{
-			list += textureCollections[ i ];
-
-			if( i != ( textureCollections.Num() - 1 ) )
-			{
-				list += ";";
-			}
-		}
-
-		worldspawn->epairs.Set( "_tb_textures", list );
-		worldspawn->epairs.Set( "_tb_def", "builtin:DOOM-3-all.fgd" );
-	}
-
-	int n = classTypeOverview.GetNumKeyVals();
-
-	idLib::Printf( "BrushClasses:\n" );
-	for( int i = 0; i < n; i++ )
-	{
-		const idKeyValue* kv = classTypeOverview.GetKeyVal( i );
-
-		if( kv->GetValue() == "BrushClass" )
-		{
-			idLib::Printf( "'%s'\n", kv->GetKey().c_str() );
-		}
-	}
-
-	idLib::Printf( "\nPointClasses:\n" );
-	for( int i = 0; i < n; i++ )
-	{
-		const idKeyValue* kv = classTypeOverview.GetKeyVal( i );
-
-		if( kv->GetValue() == "PointClass" )
-		{
-			idLib::Printf( "'%s'\n", kv->GetKey().c_str() );
-		}
-	}
-
-	idLib::Printf( "\nMixedClasses:\n" );
-	for( int i = 0; i < n; i++ )
-	{
-		const idKeyValue* kv = classTypeOverview.GetKeyVal( i );
-
-		if( kv->GetValue() == "Mixed" )
-		{
-			idLib::Printf( "'%s'\n", kv->GetKey().c_str() );
-		}
-	}
-
-	return true;
-}
-
-void idMapFile::ClassifyEntitiesForTrenchBroom( idDict& classTypeOverview )
-{
-	int count = GetNumEntities();
-	for( int j = 0; j < count; j++ )
-	{
-		idMapEntity* ent = GetEntity( j );
-		if( ent )
-		{
-			idStr classname = ent->epairs.GetString( "classname" );
-			idStr name = ent->epairs.GetString( "name" );
-
-			const idKeyValue* modelPair = ent->epairs.FindKey( "model" );
-			idStr model = ent->epairs.GetString( "model" );
-
-			bool isBrushModel = ( ent->GetNumPrimitives() > 0 ) && ( idStr::Icmp( model.c_str(), name.c_str() ) == 0 );
-
-			// is this oldschool brushes & patches?
-			if( isBrushModel )
-			{
-				const idKeyValue* kv = classTypeOverview.FindKey( classname );
-				if( kv && kv->GetValue().Length() )
-				{
-					if( idStr::Icmp( kv->GetValue().c_str(), "PointClass" ) == 0 && idStr::Icmp( kv->GetValue().c_str(), "Mixed" ) != 0 )
-					{
-						classTypeOverview.Set( classname, "Mixed" );
-					}
-				}
-				else
-				{
-					classTypeOverview.Set( classname, "BrushClass" );
-				}
-			}
-			else
-			{
-				const idKeyValue* kv = classTypeOverview.FindKey( classname );
-				if( kv && kv->GetValue().Length() )
-				{
-					if( idStr::Icmp( kv->GetValue().c_str(), "BrushClass" ) == 0 && idStr::Icmp( kv->GetValue().c_str(), "Mixed" ) != 0 )
-					{
-						classTypeOverview.Set( classname, "Mixed" );
-					}
-				}
-				else
-				{
-					classTypeOverview.Set( classname, "PointClass" );
-				}
-			}
-		}
-	}
-}
 
 bool idMapFile::ConvertQuakeToDoom()
 {
@@ -3827,57 +2992,67 @@ void idMapFile::WadTextureToMaterial( const char* material, idStr& matName )
 ============
 RB idMapBrush::MakeOriginBrush
 
-moved it here so Astyle won't mess up this file
+Builds a small 2x2x2 cube brush (textured with the non-rendering
+common/origin material) directly, without going through any text parser.
 ============
 */
 idMapBrush* idMapBrush::MakeOriginBrush( const idVec3& origin, const idVec3& scale )
 {
-	/*
-	TrenchBroom
-
-	// brush 0
+	// 8 corners of a unit cube, matched up into 6 faces (3 points each is
+	// enough to define each face plane; winding order determines the normal)
+	static const idVec3 corners[8] =
 	{
-	( -1 -64 -16 ) ( -1 -63 -16 ) ( -1 -64 -15 ) rock/lfwall15_lanrock1 [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 0.5 0.5
-	( -64 -1 -16 ) ( -64 -1 -15 ) ( -63 -1 -16 ) rock/lfwall15_lanrock1 [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 0.5 0.5
-	( -64 -64 -1 ) ( -63 -64 -1 ) ( -64 -63 -1 ) rock/lfwall15_lanrock1 [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 0.5 0.5
-	( 64 64 1 ) ( 64 65 1 ) ( 65 64 1 ) rock/lfwall15_lanrock1 [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 0.5 0.5
-	( 64 1 16 ) ( 65 1 16 ) ( 64 1 17 ) rock/lfwall15_lanrock1 [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 0.5 0.5
-	( 1 64 16 ) ( 1 64 17 ) ( 1 65 16 ) rock/lfwall15_lanrock1 [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 0.5 0.5
-	}
-	*/
+		idVec3( -1, -1, -1 ), idVec3( 1, -1, -1 ), idVec3( 1, 1, -1 ), idVec3( -1, 1, -1 ),
+		idVec3( -1, -1,  1 ), idVec3( 1, -1,  1 ), idVec3( 1, 1,  1 ), idVec3( -1, 1,  1 )
+	};
 
-	const char* tbUnitBrush = R"(
-( -1 -64 -16 ) ( -1 -63 -16 ) ( -1 -64 -15 ) common/origin [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 0.5 0.5
-( -64 -1 -16 ) ( -64 -1 -15 ) ( -63 -1 -16 ) common/origin [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 0.5 0.5
-( -64 -64 -1 ) ( -63 -64 -1 ) ( -64 -63 -1 ) common/origin [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 0.5 0.5
-( 64 64 1 ) ( 64 65 1 ) ( 65 64 1 ) common/origin [ 1 0 0 0 ] [ 0 -1 0 0 ] 0 0.5 0.5
-( 64 1 16 ) ( 65 1 16 ) ( 64 1 17 ) common/origin [ 1 0 0 0 ] [ 0 0 -1 0 ] 0 0.5 0.5
-( 1 64 16 ) ( 1 64 17 ) ( 1 65 16 ) common/origin [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 0.5 0.5
-}
-}
-)";
-
-	idLexer src( LEXFL_NOSTRINGCONCAT | LEXFL_NOSTRINGESCAPECHARS | LEXFL_ALLOWPATHNAMES );
-
-	src.LoadMemory( tbUnitBrush, strlen( tbUnitBrush), "Origin Brush" );
-	idMapBrush* brush = idMapBrush::ParseValve220( src, origin );
+	// each row is 3 corner indices (CCW as seen from outside the brush) for one face
+	static const int faces[6][3] =
+	{
+		{ 0, 3, 2 },	// -Z (bottom)
+		{ 4, 5, 6 },	// +Z (top)
+		{ 0, 1, 5 },	// -Y
+		{ 2, 3, 7 },	// +Y
+		{ 1, 2, 6 },	// +X
+		{ 0, 4, 7 }		// -X
+	};
 
 	idMat3 axis;
 	axis.Identity();
-
 	axis[0][0] = scale.x;
 	axis[1][1] = scale.y;
 	axis[2][2] = scale.z;
 
 	idMat4 transform( axis, origin );
 
-	for( int i = 0; i < brush->GetNumSides(); i++ )
-	{
-		auto side = brush->GetSide( i );
+	idMapBrush* brush = new( TAG_IDLIB ) idMapBrush();
 
-		side->planepts[0] *= transform;
-		side->planepts[1] *= transform;
-		side->planepts[2] *= transform;
+	idVec3 defaultTexMat[2] =
+	{
+		idVec3( 0.03125f, 0.0f, 0.0f ),
+		idVec3( 0.0f, 0.03125f, 0.0f )
+	};
+
+	for( int f = 0; f < 6; f++ )
+	{
+		idMapBrushSide* side = new( TAG_IDLIB ) idMapBrushSide();
+
+		side->planepts[0] = corners[faces[f][0]] * transform;
+		side->planepts[1] = corners[faces[f][1]] * transform;
+		side->planepts[2] = corners[faces[f][2]] * transform;
+
+		idVec3 p0 = side->planepts[0] - origin;
+		idVec3 p1 = side->planepts[1] - origin;
+		idVec3 p2 = side->planepts[2] - origin;
+
+		idPlane plane;
+		plane.FromPoints( p0, p1, p2 );
+		side->SetPlane( plane );
+
+		side->SetTextureMatrix( defaultTexMat );
+		side->SetMaterial( "common/origin" );
+
+		brush->AddSide( side );
 	}
 
 	return brush;

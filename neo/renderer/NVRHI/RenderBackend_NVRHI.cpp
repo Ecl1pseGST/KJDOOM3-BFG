@@ -2032,20 +2032,8 @@ void idRenderBackend::GL_StartFrame()
 		toneMapPass->Init( deviceManager->GetDevice(), &commonPasses, createParms, globalFramebuffers.ldrFBO->GetApiObject() );
 	}
 
-	if( !taaPass )
-	{
-		TemporalAntiAliasingPass::CreateParameters taaParams;
-		taaParams.sourceDepth = globalImages->currentDepthImage->GetTextureHandle();
-		taaParams.motionVectors = globalImages->taaMotionVectorsImage->GetTextureHandle();
-		taaParams.unresolvedColor = globalImages->currentRenderHDRImage->GetTextureHandle();
-		taaParams.resolvedColor = globalImages->taaResolvedImage->GetTextureHandle();
-		taaParams.feedback1 = globalImages->taaFeedback1Image->GetTextureHandle();
-		taaParams.feedback2 = globalImages->taaFeedback2Image->GetTextureHandle();
-		taaParams.motionVectorStencilMask = 0; //0x01;
-		taaParams.useCatmullRomFilter = true;
-		taaPass = new TemporalAntiAliasingPass();
-		taaPass->Init( deviceManager->GetDevice(), &commonPasses, NULL, taaParams );
-	}
+	// RB: taaPass init removed - TAA has been removed entirely
+	// RB end
 }
 
 /*
@@ -2075,8 +2063,8 @@ void idRenderBackend::GL_EndFrame()
 	// SRS - execute after EndFrame() to avoid need for barrier command list on Vulkan
 	deviceManager->GetDevice()->executeCommandList( commandList );
 
-	// update jitter for perspective matrix
-	taaPass->AdvanceFrame();
+	// RB: taaPass->AdvanceFrame() removed - TAA has been removed entirely
+	// RB end
 }
 
 /*
@@ -2358,11 +2346,8 @@ void idRenderBackend::ClearCaches()
 		toneMapPass = nullptr;
 	}
 
-	if( taaPass )
-	{
-		delete taaPass;
-		taaPass = nullptr;
-	}
+	// RB: taaPass cleanup removed - TAA has been removed entirely
+	// RB end
 
 	currentVertexBuffer = nullptr;
 	currentIndexBuffer = nullptr;

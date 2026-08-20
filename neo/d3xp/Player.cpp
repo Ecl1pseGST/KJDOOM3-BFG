@@ -1581,6 +1581,10 @@ idPlayer::idPlayer():
 	airless					= false;
 	airMsec					= 0;
 	lastAirDamage			= 0;
+	// RB: hazard liquid damage timing init
+	lastLavaDamage			= 0;
+	lastSlimeDamage			= 0;
+	// RB end
 
 	gibDeath				= false;
 	gibsLaunched			= false;
@@ -7445,6 +7449,13 @@ void idPlayer::UpdateAir()
 		}
 	}
 
+	// RB: being fully submerged (head underwater) is also airless - drowning
+	// shares the same oxygen timer/HUD bar as vacuum decompression above, it's
+	// just a different cause with different sound/damage feedback
+	bool wasUnderwater = ( physicsObj.GetWaterLevel() == WATERLEVEL_HEAD );
+	newAirless = newAirless || wasUnderwater;
+	// RB end
+
 	if( PowerUpActive( ENVIROTIME ) )
 	{
 		newAirless = false;
@@ -7454,7 +7465,17 @@ void idPlayer::UpdateAir()
 	{
 		if( !airless )
 		{
-			StartSound( "snd_decompress", SND_CHANNEL_ANY, SSF_GLOBAL, false, NULL );
+			// RB: distinguish the sound cue between vacuum decompression and
+			// going underwater
+			if( wasUnderwater )
+			{
+				StartSound( "snd_underwater", SND_CHANNEL_ANY, SSF_GLOBAL, false, NULL );
+			}
+			else
+			{
+				StartSound( "snd_decompress", SND_CHANNEL_ANY, SSF_GLOBAL, false, NULL );
+			}
+			// RB end
 			StartSound( "snd_noAir", SND_CHANNEL_BODY2, 0, false, NULL );
 		}
 		airMsec -= ( gameLocal.time - gameLocal.previousTime );
@@ -7462,13 +7483,17 @@ void idPlayer::UpdateAir()
 		{
 			airMsec = 0;
 			// check for damage
-			const idDict* damageDef = gameLocal.FindEntityDefDict( "damage_noair", false );
+			// RB: drowning uses its own damage def, separate from vacuum, so the
+			// two can be tuned independently (timing/feel/kick/sound)
+			const char* airDamageDefName = wasUnderwater ? "damage_drowning" : "damage_noair";
+			const idDict* damageDef = gameLocal.FindEntityDefDict( airDamageDefName, false );
 			int dmgTiming = 1000 * ( ( damageDef ) ? damageDef->GetFloat( "delay", "3.0" ) : 3.0f );
 			if( gameLocal.time > lastAirDamage + dmgTiming )
 			{
-				Damage( NULL, NULL, vec3_origin, "damage_noair", 1.0f, 0 );
+				Damage( NULL, NULL, vec3_origin, airDamageDefName, 1.0f, 0 );
 				lastAirDamage = gameLocal.time;
 			}
+			// RB end
 		}
 
 	}
@@ -7476,7 +7501,13 @@ void idPlayer::UpdateAir()
 	{
 		if( airless )
 		{
-			StartSound( "snd_recompress", SND_CHANNEL_ANY, SSF_GLOBAL, false, NULL );
+			// RB: no decompress SFX when the cause was water, that's a vacuum-
+			// specific line - surfacing just resumes normal breathing
+			if( !wasUnderwater )
+			{
+				StartSound( "snd_recompress", SND_CHANNEL_ANY, SSF_GLOBAL, false, NULL );
+			}
+			// RB end
 			StopSound( SND_CHANNEL_BODY2, false );
 		}
 		airMsec += ( gameLocal.time - gameLocal.previousTime );	// regain twice as fast as lose
@@ -7493,6 +7524,58 @@ void idPlayer::UpdateAir()
 		hud->UpdateOxygen( airless, 100 * airMsec / pm_airMsec.GetInteger() );
 	}
 }
+
+/*
+==============
+idPlayer::UpdateHazardLiquid
+
+RB: applies direct damage from contact with hazard liquids (lava/slime), as
+opposed to UpdateAir's suffocation timer above. Lava hurts on any contact (not
+just full submersion) and ignores the enviro suit - meant to feel like you have
+maybe one chance to get out before it's fatal. Toxic slime is damage over
+time, but the enviro suit powerup grants full immunity to it.
+==============
+*/
+void idPlayer::UpdateHazardLiquid()
+{
+	if( health <= 0 )
+	{
+		return;
+	}
+
+	int liquidType = physicsObj.GetWaterType();
+	waterLevel_t liquidLevel = physicsObj.GetWaterLevel();
+
+	if( liquidLevel == WATERLEVEL_NONE )
+	{
+		return;
+	}
+
+	if( liquidType & CONTENTS_LAVA )
+	{
+		const idDict* damageDef = gameLocal.FindEntityDefDict( "damage_lava", false );
+		int dmgTiming = 1000 * ( ( damageDef ) ? damageDef->GetFloat( "delay", "0.5" ) : 0.5f );
+		if( gameLocal.time > lastLavaDamage + dmgTiming )
+		{
+			Damage( NULL, NULL, vec3_origin, "damage_lava", 1.0f, 0 );
+			lastLavaDamage = gameLocal.time;
+		}
+	}
+	else if( liquidType & CONTENTS_SLIME )
+	{
+		if( !PowerUpActive( ENVIROSUIT ) )
+		{
+			const idDict* damageDef = gameLocal.FindEntityDefDict( "damage_slime", false );
+			int dmgTiming = 1000 * ( ( damageDef ) ? damageDef->GetFloat( "delay", "1.0" ) : 1.0f );
+			if( gameLocal.time > lastSlimeDamage + dmgTiming )
+			{
+				Damage( NULL, NULL, vec3_origin, "damage_slime", 1.0f, 0 );
+				lastSlimeDamage = gameLocal.time;
+			}
+		}
+	}
+}
+// RB end
 
 void idPlayer::UpdatePowerupHud()
 {
@@ -9178,6 +9261,10 @@ void idPlayer::Think()
 	UpdateFlashlight();
 
 	UpdateAir();
+
+	// RB: lava/slime contact damage
+	UpdateHazardLiquid();
+	// RB end
 
 	UpdatePowerupHud();
 

@@ -126,11 +126,11 @@ The light rigs aren't made for PBR but it is possible to achieve good PBR lighti
 
 PBR allows artists to create textures that are based on real world measured color values and they look more or less the same in any renderer that follows the PBR guidelines and formulars.
 
-***RBDOOM-3-BFG only supports the standard PBR Roughness/Metallic workflow.***
+***This fork uses a Specular/Gloss (CryEngine-style) PBR workflow by default, replacing upstream RBDOOM-3-BFG's Roughness/Metallic (Unreal-style) workflow.*** Classic Doom 3 Blinn-Phong content is automatically improved by an approximation pass rather than requiring reauthoring - see [docs/PBR_MATERIALS.md](docs/PBR_MATERIALS.md) for the full reference, including the exact material keywords, channel layouts, and how the `makeMaterials` auto-import tool decides which path a given texture set uses.
 
 Adding PBR is a requirement to make the new content look the same in RBDOOM-3-BFG as in Blender 3.x with Cycles or Eevee and Substance Designer. PBR became the standard material authoring since 2014. With RBDOOM-3-BFG modders can work with modern tools and expect that their content looks as expected.
 
-The PBR implementation is restricted to standard PBR using the Roughness/Metallic workflow for now. Specialized rendering paths for skin, clothes and vegetation will be in future releases.
+Specialized rendering paths for skin, clothes and vegetation will be in future releases.
 
 <img src="https://i.imgur.com/DqTEbzU.jpg" width="384"> <img src="https://media.moddb.com/images/mods/1/50/49231/rbdoom-3-bfg-20210409-221842-001.png" width="384">
 
@@ -153,13 +153,16 @@ textures/base_wall/snpanel2rust
 It's usually rendered with Blinn-Phong specular with a fixed specular exponent.
 Specularmaps are more or less Gloss maps.
 
-In RBDOOM-3-BFG it uses the PBR GGX Cook-Torrence formular and you can vary the roughness along the material like in other modern engines and you usually define a texture with the _rmao suffix.
+Materials like this one - a classic specular texture with no special filename - are automatically routed through an approximation pass ("Kenny PBR") that estimates plausible PBR values from the legacy texture, using the PBR GGX Cook-Torrance formula. You don't need to change anything about existing content for this to apply.
 
-RMAO Image Channels             | Description
+For properly authored PBR content, this fork uses a **Specular/Gloss workflow**: the specular texture directly encodes the data (no approximation needed) and you define a texture with the `_rmao` suffix - the name is a holdover from the original Roughness/Metallic/AO convention, but the channels now mean something different:
+
+Specular/Gloss Image Channels   | Description
 :-----------------------------  | :------------------------------------------------
-Red                             | Roughness
-Green                           | Metalness
-Blue                            | Ambient Occlusion
+Red                             | Specular color (F0) - red
+Green                           | Specular color (F0) - green
+Blue                            | Specular color (F0) - blue
+Alpha                           | Gloss (roughness = 1.0 - gloss)
 
 Example material:
 ```
@@ -169,13 +172,13 @@ models/mapobjects/materialorb/orb
   
   basecolormap      models/mapobjects/pbr/materialorb/substance/metal04_basecolor.png
   normalmap         models/mapobjects/pbr/materialorb/substance/metal04_normal.png
-  rmaomap           models/mapobjects/pbr/materialorb/substance/metal04_rmao.png
+  specularmap       models/mapobjects/pbr/materialorb/substance/metal04_rmao.png
 }
 ```
 
-The engine will also look for _rmao.[png/tga] overrides for old materials and if it finds those it will render them using a better PBR path. Old school specularmaps also go through a GGX pipeline but the roughness is estimated from the glossmap.
+The engine looks for a `_rmao`/`_rmaod` suffix on the specular texture's filename to decide whether to use the direct Specular/Gloss PBR path or the Kenny PBR legacy approximation - see [docs/PBR_MATERIALS.md](docs/PBR_MATERIALS.md) for the complete breakdown, including how `makeMaterials` auto-detects and routes loose texture sets.
 
-The Ambient Occlusion will be mixed with the Screen Space Ambient Occlusion and will only affect indirect lighting contributed by the environment probes.
+Ambient Occlusion isn't packed into the Specular/Gloss workflow's texture (its 4 channels are already used by specular color + gloss) but Screen Space Ambient Occlusion still applies normally on top and affects the specular indirect contribution depending on material roughness.
 
 ## Baked Global Illumination using Irradiance Volumes and Image Based Lighting
 

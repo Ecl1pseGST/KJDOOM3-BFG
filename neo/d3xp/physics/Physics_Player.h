@@ -50,13 +50,7 @@ typedef enum
 	PM_NOCLIP				// flying without collision detection nor gravity
 } pmtype_t;
 
-typedef enum
-{
-	WATERLEVEL_NONE,
-	WATERLEVEL_FEET,
-	WATERLEVEL_WAIST,
-	WATERLEVEL_HEAD
-} waterLevel_t;
+// RB: waterLevel_t now lives in Physics_Actor.h, shared by all actors
 
 #define	MAXTOUCH					32
 
@@ -104,9 +98,7 @@ public:
 	void					SetPlayerInput( const usercmd_t& cmd, const idVec3& forwardVector );
 	void					SetKnockBack( const int knockBackTime );
 	void					SetDebugLevel( bool set );
-	// feed back from last physics frame
-	waterLevel_t			GetWaterLevel() const;
-	int						GetWaterType() const;
+	// feed back from last physics frame (GetWaterLevel/GetWaterType inherited from idPhysics_Actor)
 	bool					HasJumped() const;
 	bool					HasSteppedUp() const;
 	float					GetStepUp() const;
@@ -192,9 +184,7 @@ private:
 	bool					ladder;
 	idVec3					ladderNormal;
 
-	// results of last evaluate
-	waterLevel_t			waterLevel;
-	int						waterType;
+	// RB: waterLevel/waterType now inherited from idPhysics_Actor
 
 	bool					clientPusherLocked = false;			// SRS - initialize to unlocked at start
 
@@ -218,7 +208,6 @@ private:
 	void					CheckLadder();
 	bool					CheckJump();
 	bool					CheckWaterJump();
-	void					SetWaterLevel();
 	void					DropTimers();
 	void					MovePlayer( int msec );
 };

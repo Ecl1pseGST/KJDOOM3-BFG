@@ -33,7 +33,6 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "RenderCommon.h"
 #include "Passes/MipMapGenPass_cb.h"
-#include "Passes/TemporalAntiAliasingPass_cb.h"
 #include "Passes/TonemapPass_cb.h"
 
 #include <sys/DeviceManager.h>
@@ -399,7 +398,8 @@ void idRenderProgManager::Init( nvrhi::IDevice* device )
 
 	// RB: isolated render passes can have their own push constant buffer sizes
 	layoutTypeAttributes[BINDING_LAYOUT_MIPMAPGEN].pcEnabled = sizeof( MipmmapGenConstants ) <= deviceManager->GetMaxPushConstantSize();
-	layoutTypeAttributes[BINDING_LAYOUT_TAA_RESOLVE].pcEnabled = sizeof( TemporalAntiAliasingConstants ) <= deviceManager->GetMaxPushConstantSize();
+	// RB: BINDING_LAYOUT_TAA_RESOLVE pcEnabled line removed - TAA has been removed entirely
+	// RB end
 	layoutTypeAttributes[BINDING_LAYOUT_TONEMAP].pcEnabled = sizeof( ToneMappingConstants ) <= deviceManager->GetMaxPushConstantSize();
 	layoutTypeAttributes[BINDING_LAYOUT_HISTOGRAM].pcEnabled = sizeof( ToneMappingConstants ) <= deviceManager->GetMaxPushConstantSize();
 	layoutTypeAttributes[BINDING_LAYOUT_EXPOSURE].pcEnabled = sizeof( ToneMappingConstants ) <= deviceManager->GetMaxPushConstantSize();
@@ -756,7 +756,8 @@ void idRenderProgManager::Init( nvrhi::IDevice* device )
 
 	bindingLayouts[BINDING_LAYOUT_TAA_MOTION_VECTORS] = { device->createBindingLayout( motionVectorsBindingLayout ), samplerOneBindingLayout };
 
-	bindingLayouts[BINDING_LAYOUT_TAA_RESOLVE] = { };
+	// RB: BINDING_LAYOUT_TAA_RESOLVE removed - TAA has been removed entirely
+	// RB end
 
 	// SRS - allocate static/volatile constant buffers after renderparm buffer sizes are defined for each binding layout type
 	//	   - allocate constant buffers only when needed, i.e. when push constants are not enabled for binding layout type
@@ -923,11 +924,10 @@ void idRenderProgManager::Init( nvrhi::IDevice* device )
 		// SRS - changed from BUILTIN_MOTION_BLUR to BUILTIN_TAA_MOTION_VECTORS
 		{ BUILTIN_TAA_MOTION_VECTORS, "builtin/post/motionBlur", "_vectors", { { "VECTORS_ONLY", "1" }, { "USE_PUSH_CONSTANTS", usePushConstants( BINDING_LAYOUT_TAA_MOTION_VECTORS ) } }, false, SHADER_STAGE_DEFAULT, LAYOUT_DRAW_VERT, BINDING_LAYOUT_TAA_MOTION_VECTORS },
 
-		// RB: without access to the renderpass code itself we don't know wether we need the push constants or constant buffer versions
-		{ BUILTIN_TAA_RESOLVE, "builtin/post/taa", "", { { "SAMPLE_COUNT", "1" }, { "USE_CATMULL_ROM_FILTER", "1" }, { "USE_PUSH_CONSTANTS", usePushConstants( BINDING_LAYOUT_TAA_RESOLVE ) } }, false, SHADER_STAGE_COMPUTE, LAYOUT_UNKNOWN, BINDING_LAYOUT_TAA_RESOLVE },
-		{ BUILTIN_TAA_RESOLVE_MSAA_2X, "builtin/post/taa", "_msaa2x", { { "SAMPLE_COUNT", "2" }, { "USE_CATMULL_ROM_FILTER", "1" }, { "USE_PUSH_CONSTANTS", usePushConstants( BINDING_LAYOUT_TAA_RESOLVE ) } }, false, SHADER_STAGE_COMPUTE, LAYOUT_UNKNOWN, BINDING_LAYOUT_TAA_RESOLVE },
-		{ BUILTIN_TAA_RESOLVE_MSAA_4X, "builtin/post/taa", "_msaa4x", { { "SAMPLE_COUNT", "4" }, { "USE_CATMULL_ROM_FILTER", "1" }, { "USE_PUSH_CONSTANTS", usePushConstants( BINDING_LAYOUT_TAA_RESOLVE ) } }, false, SHADER_STAGE_COMPUTE, LAYOUT_UNKNOWN, BINDING_LAYOUT_TAA_RESOLVE },
-		{ BUILTIN_TAA_RESOLVE_MSAA_8X, "builtin/post/taa", "_msaa8x", { { "SAMPLE_COUNT", "8" }, { "USE_CATMULL_ROM_FILTER", "1" }, { "USE_PUSH_CONSTANTS", usePushConstants( BINDING_LAYOUT_TAA_RESOLVE ) } }, false, SHADER_STAGE_COMPUTE, LAYOUT_UNKNOWN, BINDING_LAYOUT_TAA_RESOLVE },
+		// RB: BUILTIN_TAA_RESOLVE* table entries removed - TAA has been
+		// removed entirely (BUILTIN_TAA_MOTION_VECTORS above is kept, it's
+		// shared with the motion blur post effect)
+		// RB end
 
 		{ BUILTIN_AMBIENT_OCCLUSION, "builtin/SSAO/AmbientOcclusion_AO", "", { { "BRIGHTPASS", "0" }, { "USE_PUSH_CONSTANTS", usePushConstants( BINDING_LAYOUT_DRAW_AO ) } }, false, SHADER_STAGE_DEFAULT, LAYOUT_DRAW_VERT, BINDING_LAYOUT_DRAW_AO },
 		{ BUILTIN_AMBIENT_OCCLUSION_AND_OUTPUT, "builtin/SSAO/AmbientOcclusion_AO", "_write", { { "BRIGHTPASS", "1" }, { "USE_PUSH_CONSTANTS", usePushConstants( BINDING_LAYOUT_DRAW_AO ) } }, false, SHADER_STAGE_DEFAULT, LAYOUT_DRAW_VERT, BINDING_LAYOUT_DRAW_AO },

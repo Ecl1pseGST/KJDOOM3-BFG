@@ -177,7 +177,8 @@ private:
 	int				fadeEnd;
 	bool			soundWasPlaying;
 
-	// RB: pointing to static model because this light entity was split into 2 entities by convertMapToValve220
+	// RB: pointing to a static model entity so this light entity's color/broken
+	// state can be synced to a separately grouped func_static (set via "modelTarget")
 	idEntityPtr<idStaticEntity> modelTarget;
 
 private:

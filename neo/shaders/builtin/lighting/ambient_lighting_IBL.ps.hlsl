@@ -165,22 +165,17 @@ void main( PS_IN fragment, out PS_OUT result )
 	float vDotN = saturate( dot3( globalView, globalNormal ) );
 
 #if USE_PBR
-	const float metallic = specMapSRGB.g;
-	const float roughness = specMapSRGB.r;
-	const float glossiness = 1.0 - roughness;
-	float ao = specMapSRGB.b;
+	// RB: CryEngine-style specular/gloss workflow, replacing the old
+	// Unreal-style metallic/roughness interpretation. No per-pixel AO channel
+	// in this workflow (the specular map's 4 channels are fully used by
+	// F0 color + gloss already) - matches how the KENNY_PBR/legacy paths
+	// below also default AO to 1.0.
+	float3 specularColor;
+	float roughness;
+	SpecularWorkflowPBR( specMap.rgb, specMapSRGB.a, specularColor, roughness );
 
-	// the vast majority of real-world materials (anything not metal or gems) have F(0)
-	// values in a very narrow range (~0.02 - 0.08)
-
-	// approximate non-metals with linear RGB 0.04 which is 0.08 * 0.5 (default in UE4)
-	const float3 dielectricColor = _float3( 0.04 );
-
-	// derive diffuse and specular from albedo(m) base color
-	const float3 baseColor = diffuseMap;
-
-	float3 diffuseColor = baseColor * ( 1.0 - metallic );
-	float3 specularColor = lerp( dielectricColor, baseColor, metallic );
+	float ao = 1.0;
+	float3 diffuseColor = diffuseMap;
 
 #if defined( DEBUG_PBR )
 	diffuseColor = float3( 0.0, 0.0, 0.0 );
@@ -188,7 +183,10 @@ void main( PS_IN fragment, out PS_OUT result )
 #endif
 
 	float3 kS = Fresnel_SchlickRoughness( specularColor, vDotN, roughness );
-	float3 kD = ( float3( 1.0, 1.0, 1.0 ) - kS ) * ( 1.0 - metallic );
+	// no metalness term in this workflow - the diffuse map already carries
+	// whatever diffuse response the artist authored
+	float3 kD = ( float3( 1.0, 1.0, 1.0 ) - kS );
+	// RB end
 
 #else
 

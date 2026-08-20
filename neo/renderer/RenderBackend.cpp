@@ -4862,10 +4862,13 @@ void idRenderBackend::DrawMotionVectors()
 		return;
 	}
 
-	if( !R_UseTemporalAA() && r_motionBlur.GetInteger() <= 0 )
+	// RB: motion vectors are now only needed for the motion blur post effect,
+	// TAA (which used to also need them) has been removed
+	if( r_motionBlur.GetInteger() <= 0 )
 	{
 		return;
 	}
+	// RB end
 
 	if( viewDef->isSubview )
 	{
@@ -5013,64 +5016,12 @@ void idRenderBackend::DrawMotionVectors()
 	renderLog.CloseMainBlock();
 }
 
-void idRenderBackend::TemporalAAPass( const viewDef_t* _viewDef )
+// KJ: TemporalAAPass removed - TAA has been removed entirely
+// KJ end
+
+idVec2 idRenderBackend::GetCurrentPixelOffset(int frameIndex) const
 {
-	// if we are just doing 2D rendering, no need for HDR TAA
-	if( viewDef->viewEntitys == NULL )
-	{
-		return;
-	}
-
-	if( !R_UseTemporalAA() )
-	{
-		return;
-	}
-
-	if( viewDef->isSubview )
-	{
-		return;
-	}
-
-	if( viewDef->renderView.rdflags & ( RDF_NOAMBIENT | RDF_IRRADIANCE ) )
-	{
-		return;
-	}
-
-	//OPTICK_EVENT( "Render_TemporalAA" );
-
-	nvrhi::ObjectType commandObject = nvrhi::ObjectTypes::D3D12_GraphicsCommandList;
-	if( deviceManager->GetGraphicsAPI() == nvrhi::GraphicsAPI::VULKAN )
-	{
-		commandObject = nvrhi::ObjectTypes::VK_CommandBuffer;
-	}
-	OPTICK_GPU_CONTEXT( ( void* ) commandList->getNativeObject( commandObject ) );
-	OPTICK_GPU_EVENT( "Render_TemporalAA" );
-
-	renderLog.OpenMainBlock( MRB_TAA );
-	renderLog.OpenBlock( "Render_TemporalAA" );
-
-	TemporalAntiAliasingParameters params =
-	{
-		r_taaNewFrameWeight.GetFloat(),
-		r_taaClampingFactor.GetFloat(),
-		r_taaMaxRadiance.GetFloat(),
-		r_taaEnableHistoryClamping.GetBool()
-	};
-	taaPass->TemporalResolve( commandList, params, prevViewsValid, _viewDef );
-	prevViewsValid = true;
-
-	renderLog.CloseBlock();
-	renderLog.CloseMainBlock();
-}
-
-idVec2 idRenderBackend::GetCurrentPixelOffset( int frameIndex ) const
-{
-	if( taaPass )
-	{
-		return taaPass->GetCurrentPixelOffset( frameIndex );
-	}
-
-	return idVec2( 0, 0 );
+	return idVec2(0, 0);
 }
 
 // RB: FIXME currently not used
@@ -5982,17 +5933,9 @@ void idRenderBackend::DrawViewInternal( const viewDef_t* _viewDef, const int ste
 	DBG_RenderDebugTools( drawSurfs, numDrawSurfs );
 
 	//-------------------------------------------------
-	// motion vectors are useful for TAA and motion blur
+	// motion vectors are useful for motion blur
 	//-------------------------------------------------
 	DrawMotionVectors();
-
-	//-------------------------------------------------
-	// resolve of HDR target using temporal anti aliasing before any tonemapping and post processing
-	//
-	// use this to eat all stochastic noise like from volumetric light sampling or SSAO
-	// runs at full resolution
-	//-------------------------------------------------
-	TemporalAAPass( _viewDef );
 
 	//-------------------------------------------------
 	// tonemapping: convert back from HDR to LDR range
@@ -6006,23 +5949,22 @@ void idRenderBackend::DrawViewInternal( const viewDef_t* _viewDef, const int ste
 		renderLog.OpenBlock( "Render_ToneMapPass", colorBlue );
 
 		ToneMappingParameters parms;
-		if( R_UseTemporalAA() )
+
+		// RB: TAA resolve branch removed - TAA has been removed entirely.
+		// MSAA resolve (when enabled) still needs an explicit hardware
+		// resolveTexture() before tonemapping can sample it as a regular
+		// single-sample texture.
+		if( R_GetMSAASamples() > 1 )
 		{
+			commandList->resolveTexture( globalImages->taaResolvedImage->GetTextureHandle(), nvrhi::AllSubresources, globalImages->currentRenderHDRImage->GetTextureHandle(), nvrhi::AllSubresources );
+
 			toneMapPass->SimpleRender( commandList, parms, viewDef, globalImages->taaResolvedImage->GetTextureHandle(), globalFramebuffers.ldrFBO->GetApiObject() );
 		}
 		else
 		{
-			if( R_GetMSAASamples() > 1 )
-			{
-				commandList->resolveTexture( globalImages->taaResolvedImage->GetTextureHandle(), nvrhi::AllSubresources, globalImages->currentRenderHDRImage->GetTextureHandle(), nvrhi::AllSubresources );
-
-				toneMapPass->SimpleRender( commandList, parms, viewDef, globalImages->taaResolvedImage->GetTextureHandle(), globalFramebuffers.ldrFBO->GetApiObject() );
-			}
-			else
-			{
-				toneMapPass->SimpleRender( commandList, parms, viewDef, globalImages->currentRenderHDRImage->GetTextureHandle(), globalFramebuffers.ldrFBO->GetApiObject() );
-			}
+			toneMapPass->SimpleRender( commandList, parms, viewDef, globalImages->currentRenderHDRImage->GetTextureHandle(), globalFramebuffers.ldrFBO->GetApiObject() );
 		}
+		// RB end
 
 		renderLog.CloseBlock();
 		renderLog.CloseMainBlock();
@@ -6432,8 +6374,8 @@ void idRenderBackend::PostProcess( const void* data )
 
 #if 1
 	// SMAA
-	int aaMode = r_antiAliasing.GetInteger();
-	if( aaMode == ANTI_ALIASING_SMAA_1X )
+	// RB: now an independent toggle instead of a mutually-exclusive mode check
+	if( r_useSMAA.GetBool() )
 	{
 		OPTICK_GPU_EVENT( "Render_SMAA" );
 		renderLog.OpenBlock( "Render_SMAA" );

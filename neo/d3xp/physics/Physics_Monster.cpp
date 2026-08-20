@@ -344,6 +344,11 @@ void idPhysics_Monster::Save( idSaveGame* savefile ) const
 
 	savefile->WriteInt( ( int )moveResult );
 	savefile->WriteObject( blockingEntity );
+
+	// RB: water level is now shared via idPhysics_Actor
+	savefile->WriteInt( ( int )waterLevel );
+	savefile->WriteInt( waterType );
+	// RB end
 }
 
 /*
@@ -368,6 +373,11 @@ void idPhysics_Monster::Restore( idRestoreGame* savefile )
 
 	savefile->ReadInt( ( int& )moveResult );
 	savefile->ReadObject( reinterpret_cast<idClass*&>( blockingEntity ) );
+
+	// RB: water level is now shared via idPhysics_Actor
+	savefile->ReadInt( ( int& )waterLevel );
+	savefile->ReadInt( waterType );
+	// RB end
 }
 
 /*
@@ -529,6 +539,35 @@ bool idPhysics_Monster::Evaluate( int timeStepMSec, int endTimeMSec )
 
 	// check if on the ground
 	idPhysics_Monster::CheckGround( current );
+
+	// RB: passive buoyancy only - if this monster ends up in deep water (knocked
+	// in, fell off a ledge, chased somewhere blindly, etc.) don't let it sink
+	// through the floor or get stuck at the bottom. This does NOT grant any new
+	// movement capability and does NOT affect AI path/goal selection - actual
+	// swim movement and pathfinding (AAS TFL_SWIM) are deliberately separate,
+	// not-yet-implemented work. A monster that can't swim still can't choose to
+	// cross water on purpose; this only keeps it from glitching if it ends up
+	// there some other way.
+	idPhysics_Actor::SetWaterLevel();
+
+	if( waterLevel >= WATERLEVEL_WAIST && !fly )
+	{
+		// counteract gravity for this frame, then add a small upward drift so a
+		// submerged monster settles near the surface instead of hovering at
+		// whatever depth it happened to sink to
+		current.velocity -= gravityVector * timeStep;
+
+		const float buoyancyDrift = 40.0f; // units/sec upward drift while submerged
+		current.velocity -= gravityNormal * buoyancyDrift * timeStep;
+
+		// clamp so buoyancy can't build up unbounded vertical speed over time
+		float vertSpeed = -( current.velocity * gravityNormal );
+		if( vertSpeed > 100.0f )
+		{
+			current.velocity += gravityNormal * ( vertSpeed - 100.0f );
+		}
+	}
+	// RB end
 
 	// if not on the ground or moving upwards
 	float upspeed;

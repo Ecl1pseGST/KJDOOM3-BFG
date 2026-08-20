@@ -1368,7 +1368,14 @@ public:
 			SYSTEM_FIELD_FULLSCREEN,
 			SYSTEM_FIELD_FRAMERATE,
 			SYSTEM_FIELD_VSYNC,
-			SYSTEM_FIELD_ANTIALIASING,
+			// RB: independent MSAA/SMAA toggles, replacing the single
+			// SYSTEM_FIELD_ANTIALIASING preset-cycling field. CMAA2 isn't
+			// added here yet - its quality presets aren't wired to real
+			// shader behavior, so a menu control for it would be fake.
+			SYSTEM_FIELD_MSAA_TOGGLE,
+			SYSTEM_FIELD_MSAA_SAMPLES,
+			SYSTEM_FIELD_SMAA_TOGGLE,
+			// RB end
 			// RB begin
 			SYSTEM_FIELD_RENDERMODE,
 			SYSTEM_FIELD_AMBIENT_BRIGHTNESS,
@@ -1404,7 +1411,11 @@ public:
 	private:
 		idStr originalRenderAPI;
 		int originalFramerate;
-		int originalAntialias;
+		// RB: replacing originalAntialias with independent MSAA/SMAA tracking
+		bool originalMSAAEnabled;
+		int originalMSAASamples;
+		bool originalSMAAEnabled;
+		// RB end
 		int originalVsync;
 		float originalBrightness;
 		float originalVolume;

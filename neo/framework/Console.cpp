@@ -217,7 +217,8 @@ void idConsoleLocal::DrawTextRightAlign( float x, float& y, const char* text, ..
 idConsoleLocal::DrawFPS
 ==================
 */
-extern bool R_UseTemporalAA();
+// RB: R_UseTemporalAA extern removed - TAA has been removed entirely
+// RB end
 
 #define	FPS_FRAMES	6
 #define FPS_FRAMES_HISTORY 90
@@ -389,59 +390,35 @@ float idConsoleLocal::DrawFPS( float y )
 
 		const char* API = gfxValues[ int( deviceManager->GetGraphicsAPI() ) ];
 
-		extern idCVar r_antiAliasing;
-
-#if ID_MSAA
-		static const int aaNumValues = 5;
-
-		static const char* aaValues[aaNumValues] =
+		// RB: build a combined AA mode string from the independent toggles,
+		// replacing the old single r_antiAliasing enum display
+		idStr aaModeStr;
+		if( r_useMSAA.GetBool() )
 		{
-			"None",
-			"None",
-			"SMAA 1X",
-			"MSAA 2X",
-			"MSAA 4X",
-		};
-
-		static const char* taaValues[aaNumValues] =
-		{
-			"None",
-			"TAA",
-			"TAA + SMAA 1X",
-			"MSAA 2X",
-			"MSAA 4X",
-		};
-
-		compile_time_assert( aaNumValues == ( ANTI_ALIASING_MSAA_4X + 1 ) );
-#else
-		static const int aaNumValues = 3;
-
-		static const char* aaValues[aaNumValues] =
-		{
-			"None",
-			"SMAA",
-			"None",
-		};
-
-		static const char* taaValues[aaNumValues] =
-		{
-			"None",
-			"SMAA",
-			"TAA",
-		};
-
-		compile_time_assert( aaNumValues == ( ANTI_ALIASING_TAA + 1 ) );
-#endif
-
-		const char* aaMode = NULL;
-		if( R_UseTemporalAA() )
-		{
-			aaMode = taaValues[ r_antiAliasing.GetInteger() ];
+			aaModeStr += va( "MSAA %ix", r_msaaSamples.GetInteger() );
 		}
-		else
+		if( r_useSMAA.GetBool() )
 		{
-			aaMode = aaValues[ r_antiAliasing.GetInteger() ];
+			if( aaModeStr.Length() )
+			{
+				aaModeStr += " + ";
+			}
+			aaModeStr += "SMAA";
 		}
+		if( r_useCMAA2.GetBool() )
+		{
+			if( aaModeStr.Length() )
+			{
+				aaModeStr += " + ";
+			}
+			aaModeStr += "CMAA2";
+		}
+		if( !aaModeStr.Length() )
+		{
+			aaModeStr = "None";
+		}
+		const char* aaMode = aaModeStr.c_str();
+		// RB end
 
 		static const int rrNumValues = 10;
 		static const char* rrValues[rrNumValues] =

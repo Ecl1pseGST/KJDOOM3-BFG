@@ -185,6 +185,44 @@ CONSOLE_COMMAND( reloadScript2, "Doesn't thow an error...  Use this when switchi
 	}
 }
 
+// RB: diagnostic aid for water/content debugging - prints the raw contents
+// bitmask found by gameLocal.clip.Contents() at the local player's feet/waist/
+// head check points (mirrors exactly what idPhysics_Player::SetWaterLevel does),
+// plus whether the game currently thinks the player is in water at all.
+CONSOLE_COMMAND( testWaterContents, "Prints the collision contents at the local player's feet/waist/head, and the current water level, for debugging water detection", 0 )
+{
+	idPlayer* player = gameLocal.GetLocalPlayer();
+	if( !player )
+	{
+		common->Printf( "testWaterContents: no local player\n" );
+		return;
+	}
+
+	idPhysics* physics = player->GetPhysics();
+	idBounds bounds = physics->GetBounds();
+	idVec3 origin = physics->GetOrigin();
+	idVec3 gravityNormal = physics->GetGravityNormal();
+
+	idVec3 feetPoint = origin - ( bounds[0][2] + 1.0f ) * gravityNormal;
+	idVec3 waistPoint = origin - ( bounds[1][2] - bounds[0][2] ) * 0.5f * gravityNormal;
+	idVec3 headPoint = origin - ( bounds[1][2] - 1.0f ) * gravityNormal;
+
+	int feetContents = gameLocal.clip.Contents( feetPoint, NULL, mat3_identity, -1, player );
+	int waistContents = gameLocal.clip.Contents( waistPoint, NULL, mat3_identity, -1, player );
+	int headContents = gameLocal.clip.Contents( headPoint, NULL, mat3_identity, -1, player );
+
+	common->Printf( "--- testWaterContents ---\n" );
+	common->Printf( "origin: %s\n", origin.ToString() );
+	common->Printf( "feet  point %s  contents = 0x%x  %s\n", feetPoint.ToString(), feetContents,
+					( feetContents & MASK_WATER ) ? "(WATER)" : "" );
+	common->Printf( "waist point %s  contents = 0x%x  %s\n", waistPoint.ToString(), waistContents,
+					( waistContents & MASK_WATER ) ? "(WATER)" : "" );
+	common->Printf( "head  point %s  contents = 0x%x  %s\n", headPoint.ToString(), headContents,
+					( headContents & MASK_WATER ) ? "(WATER)" : "" );
+	common->Printf( "CONTENTS_WATER bit = 0x%x   MASK_WATER = 0x%x\n", CONTENTS_WATER, MASK_WATER );
+}
+// RB end
+
 /*
 ===================
 Cmd_Script_f

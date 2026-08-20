@@ -38,7 +38,6 @@ If you have questions concerning this license or the applicable additional terms
 #include "Passes/MipMapGenPass.h"
 #include "Passes/SsaoPass.h"
 #include "Passes/TonemapPass.h"
-#include "Passes/TemporalAntiAliasingPass.h"
 
 #include "PipelineCache.h"
 
@@ -189,7 +188,6 @@ private:
 	void				ShadowAtlasPass( const viewDef_t* _viewDef );
 
 	void				DrawMotionVectors();
-	void				TemporalAAPass( const viewDef_t* _viewDef );
 
 	// RB: outdated HDR stuff
 	void				Bloom( const viewDef_t* viewDef );
@@ -209,7 +207,8 @@ private:
 
 public:
 	uint64				GL_GetCurrentState() const;
-	idVec2				GetCurrentPixelOffset( int frameIndex ) const;
+
+	idVec2				GetCurrentPixelOffset(int frameIndex) const;
 
 	nvrhi::ICommandList* GL_GetCommandList() const
 	{
@@ -384,7 +383,6 @@ private:
 	SsaoPass*						ssaoPass;
 	MipMapGenPass*					hiZGenPass;
 	TonemapPass*					toneMapPass;
-	TemporalAntiAliasingPass*		taaPass;
 
 	BindingCache					bindingCache;
 	SamplerCache					samplerCache;

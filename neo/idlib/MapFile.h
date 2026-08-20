@@ -117,25 +117,15 @@ public:
 	}
 	void					GetTextureVectors( idVec4 v[2] ) const;
 
-	// RB: support Valve 220 projection by TrenchBroom
 	enum ProjectionType
 	{
-		PROJECTION_BP		= 0,
-		PROJECTION_VALVE220	= 1
+		PROJECTION_BP		= 0
 	};
 
 	ProjectionType			GetProjectionType() const
 	{
 		return projection;
 	}
-
-	const idVec2i&			GetTextureSize() const
-	{
-		return texSize;
-	}
-
-	void					ConvertToValve220Format( const idMat4& entityTransform, idStrList& textureCollections );
-	// RB end
 
 protected:
 	idStr					material;
@@ -147,9 +137,6 @@ public:
 	// RB
 	idVec3					planepts[ 3 ]; // for writing back original planepts
 	ProjectionType			projection;
-	idVec4					texValve[ 2 ]; // alternative texture coordinate mapping
-	idVec2					texScale;
-	idVec2i					texSize;
 
 };
 
@@ -161,12 +148,6 @@ ID_INLINE idMapBrushSide::idMapBrushSide()
 	origin.Zero();
 
 	projection = PROJECTION_BP;
-	texValve[0].Zero();
-	texValve[1].Zero();
-	texScale[0] = 1.0f;
-	texScale[1] = 1.0f;
-	texSize[0] = 32;
-	texSize[1] = 32;
 }
 
 
@@ -184,9 +165,7 @@ public:
 	}
 	static idMapBrush* 		Parse( idLexer& src, const idVec3& origin, bool newFormat = true, int version = CURRENT_MAP_VERSION );
 	static idMapBrush* 		ParseQ3( idLexer& src, const idVec3& origin );
-	static idMapBrush* 		ParseValve220( idLexer& src, const idVec3& origin ); // RB
 	bool					Write( idFile* fp, int primitiveNum, const idVec3& origin ) const;
-	bool					WriteValve220( idFile* fp, int primitiveNum, const idVec3& origin ) const; // RB
 
 	// returns an origin brush with the size of (2, 2, 2) by default
 	// so we can center the brush on a grid size of 1 in TrenchBroom
@@ -456,7 +435,7 @@ public:
 	// HVG check gltf scene for entities
 	static int				GetEntities( gltfData* data, EntityListRef entities, int scene = 0 );
 	static idMapEntity* 	Parse( idLexer& src, bool worldSpawn = false, int version = CURRENT_MAP_VERSION );
-	bool					Write( idFile* fp, int entityNum, bool valve220 ) const;
+	bool					Write( idFile* fp, int entityNum ) const;
 
 	// HVG NOTE: this is not compatible with gltf (extra) json!
 	// RB begin
@@ -505,9 +484,6 @@ public:
 	bool					WriteJSON( const char* fileName, const char* ext, bool fromBasePath = true );
 	bool					WriteDiff( const idMapFile* other, const char* fileName, const char* ext, bool fromBasePath = true );
 	bool					ConvertToPolygonMeshFormat();
-	bool					ConvertToValve220Format( bool recalcPlanePoints );
-
-	void					ClassifyEntitiesForTrenchBroom( idDict& classTypeOverview );
 
 	// converts Wad texture names to valid Doom 3 materials and gives every entity a unique name
 	bool					ConvertQuakeToDoom();
@@ -570,7 +546,6 @@ protected:
 	idMapEntity::EntityList	entities;
 	idStr					name;
 	bool					hasPrimitiveData;
-	bool					valve220Format;	// RB: for TrenchBroom support
 	bool					gltfFormat;
 
 private:
@@ -585,7 +560,6 @@ ID_INLINE idMapFile::idMapFile()
 	geometryCRC = 0;
 	entities.Resize( 1024, 256 );
 	hasPrimitiveData = false;
-	valve220Format = false;
 	gltfFormat = false;
 }
 

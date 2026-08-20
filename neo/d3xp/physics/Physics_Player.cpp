@@ -1417,53 +1417,6 @@ bool idPhysics_Player::CheckWaterJump()
 }
 
 /*
-=============
-idPhysics_Player::SetWaterLevel
-=============
-*/
-void idPhysics_Player::SetWaterLevel()
-{
-	idVec3		point;
-	idBounds	bounds;
-	int			contents;
-
-	//
-	// get waterlevel, accounting for ducking
-	//
-	waterLevel = WATERLEVEL_NONE;
-	waterType = 0;
-
-	bounds = clipModel->GetBounds();
-
-	// check at feet level
-	point = current.origin - ( bounds[0][2] + 1.0f ) * gravityNormal;
-	contents = gameLocal.clip.Contents( point, NULL, mat3_identity, -1, self );
-	if( contents & MASK_WATER )
-	{
-
-		waterType = contents;
-		waterLevel = WATERLEVEL_FEET;
-
-		// check at waist level
-		point = current.origin - ( bounds[1][2] - bounds[0][2] ) * 0.5f * gravityNormal;
-		contents = gameLocal.clip.Contents( point, NULL, mat3_identity, -1, self );
-		if( contents & MASK_WATER )
-		{
-
-			waterLevel = WATERLEVEL_WAIST;
-
-			// check at head level
-			point = current.origin - ( bounds[1][2] - 1.0f ) * gravityNormal;
-			contents = gameLocal.clip.Contents( point, NULL, mat3_identity, -1, self );
-			if( contents & MASK_WATER )
-			{
-				waterLevel = WATERLEVEL_HEAD;
-			}
-		}
-	}
-}
-
-/*
 ================
 idPhysics_Player::DropTimers
 ================
@@ -1557,7 +1510,7 @@ void idPhysics_Player::MovePlayer( int msec )
 	}
 
 	// set watertype and waterlevel
-	idPhysics_Player::SetWaterLevel();
+	idPhysics_Actor::SetWaterLevel();
 
 	// check for ground
 	idPhysics_Player::CheckGround();
@@ -1604,32 +1557,12 @@ void idPhysics_Player::MovePlayer( int msec )
 	}
 
 	// set watertype, waterlevel and groundentity
-	idPhysics_Player::SetWaterLevel();
+	idPhysics_Actor::SetWaterLevel();
 	idPhysics_Player::CheckGround();
 
 	// move the player velocity back into the world frame
 	current.velocity += current.pushVelocity;
 	current.pushVelocity.Zero();
-}
-
-/*
-================
-idPhysics_Player::GetWaterLevel
-================
-*/
-waterLevel_t idPhysics_Player::GetWaterLevel() const
-{
-	return waterLevel;
-}
-
-/*
-================
-idPhysics_Player::GetWaterType
-================
-*/
-int idPhysics_Player::GetWaterType() const
-{
-	return waterType;
 }
 
 /*

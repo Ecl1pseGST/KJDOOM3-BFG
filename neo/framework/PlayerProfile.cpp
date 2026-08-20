@@ -158,7 +158,14 @@ bool idPlayerProfile::Serialize( idSerializer& ser )
 		cvarDict.Delete( "r_fullscreen" );
 		cvarDict.Delete( "r_vidMode" );
 		cvarDict.Delete( "r_multisamples" );
-		cvarDict.Delete( "r_antiAliasing" );
+		// RB: r_useMSAA/r_msaaSamples affect the swapchain the same way
+		// r_multisamples above does, so they need the same restart-required
+		// exclusion the old r_antiAliasing had. r_useSMAA/r_useCMAA2 are
+		// pure post-process toggles with no swapchain/device implications,
+		// so they're fine to sync live and aren't excluded here.
+		cvarDict.Delete( "r_useMSAA" );
+		cvarDict.Delete( "r_msaaSamples" );
+		// RB end
 		cvarDict.Delete( "com_engineHz" );
 		cvarSystem->SetCVarsFromDict( cvarDict );
 		common->StartupVariable( NULL );

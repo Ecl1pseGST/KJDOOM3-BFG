@@ -1084,10 +1084,10 @@ void idImageManager::CreateIntrinsicImages()
 	currentRenderHDRImage = globalImages->ImageFromFunction( "_currentRenderHDR", R_HDR_RGBA16FImage_ResNative_MSAAOpt );
 	ldrImage = globalImages->ImageFromFunction( "_currentRenderLDR", R_LdrNativeImage );
 
-	taaMotionVectorsImage = ImageFromFunction( "_taaMotionVectors", R_HDR_RG16FImage_ResNative ); // RB: could be shared with _currentNormals.zw
-	taaResolvedImage = ImageFromFunction( "_taaResolved", R_HDR_RGBA16FImage_ResNative_UAV );
-	taaFeedback1Image = ImageFromFunction( "_taaFeedback1", R_HDR_RGBA16FImage_ResNative_UAV );
-	taaFeedback2Image = ImageFromFunction( "_taaFeedback2", R_HDR_RGBA16FImage_ResNative_UAV );
+	taaMotionVectorsImage = ImageFromFunction( "_taaMotionVectors", R_HDR_RG16FImage_ResNative ); // RB: could be shared with _currentNormals.zw, kept - shared with motion blur
+	taaResolvedImage = ImageFromFunction( "_taaResolved", R_HDR_RGBA16FImage_ResNative_UAV ); // RB: kept - shared MSAA resolve target
+	// RB: taaFeedback1Image/taaFeedback2Image removed - were TAA-exclusive
+	// RB end
 
 	envprobeHDRImage = globalImages->ImageFromFunction( "_envprobeHDR", R_EnvprobeImage_HDR );
 	envprobeDepthImage = ImageFromFunction( "_envprobeDepth", R_EnvprobeImage_Depth );

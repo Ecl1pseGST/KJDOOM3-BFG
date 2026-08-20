@@ -50,6 +50,12 @@ idPhysics_Actor::idPhysics_Actor()
 	masterYaw = 0.0f;
 	masterDeltaYaw = 0.0f;
 	groundEntityPtr = NULL;
+
+	// RB: water level shared by all actors
+	waterLevel = WATERLEVEL_NONE;
+	waterType = 0;
+	waterBodyPtr = NULL;
+	// RB end
 }
 
 /*
@@ -85,6 +91,12 @@ void idPhysics_Actor::Save( idSaveGame* savefile ) const
 	savefile->WriteFloat( masterDeltaYaw );
 
 	groundEntityPtr.Save( savefile );
+
+	// RB: water level shared by all actors
+	savefile->WriteInt( ( int )waterLevel );
+	savefile->WriteInt( waterType );
+	waterBodyPtr.Save( savefile );
+	// RB end
 }
 
 /*
@@ -106,6 +118,12 @@ void idPhysics_Actor::Restore( idRestoreGame* savefile )
 	savefile->ReadFloat( masterDeltaYaw );
 
 	groundEntityPtr.Restore( savefile );
+
+	// RB: water level shared by all actors
+	savefile->ReadInt( ( int& )waterLevel );
+	savefile->ReadInt( waterType );
+	waterBodyPtr.Restore( savefile );
+	// RB end
 }
 
 /*
@@ -422,3 +440,128 @@ bool idPhysics_Actor::EvaluateContacts()
 
 	return ( contacts.Num() != 0 );
 }
+
+/*
+================
+idPhysics_Actor::GetWaterLevel
+
+RB: shared by all actors (players, monsters). Mirrors the check that used to
+live only in idPhysics_Player::SetWaterLevel, but also resolves which specific
+liquid entity (if any) is touched, so gameplay code (splash sounds, per-body
+buoyancy/current, etc.) can react to a particular body of water rather than
+just a generic content flag. Notifies self via idEntity::EnterLiquid/ExitLiquid
+on state transitions.
+================
+*/
+void idPhysics_Actor::SetWaterLevel()
+{
+	idVec3		point;
+	idBounds	bounds;
+	int			contents;
+
+	waterLevel_t oldWaterLevel = waterLevel;
+	idEntity* oldWaterBody = waterBodyPtr.GetEntity();
+
+	waterLevel = WATERLEVEL_NONE;
+	waterType = 0;
+
+	if( !clipModel )
+	{
+		return;
+	}
+
+	bounds = clipModel->GetBounds();
+	idVec3 origin = clipModel->GetOrigin();
+
+	// check at feet level
+	point = origin - ( bounds[0][2] + 1.0f ) * gravityNormal;
+	contents = gameLocal.clip.Contents( point, NULL, mat3_identity, -1, self );
+	if( contents & MASK_LIQUID )
+	{
+		waterType = contents;
+		waterLevel = WATERLEVEL_FEET;
+
+		// check at waist level
+		point = origin - ( bounds[1][2] - bounds[0][2] ) * 0.5f * gravityNormal;
+		contents = gameLocal.clip.Contents( point, NULL, mat3_identity, -1, self );
+		if( contents & MASK_LIQUID )
+		{
+			waterLevel = WATERLEVEL_WAIST;
+
+			// check at head level
+			point = origin - ( bounds[1][2] - 1.0f ) * gravityNormal;
+			contents = gameLocal.clip.Contents( point, NULL, mat3_identity, -1, self );
+			if( contents & MASK_LIQUID )
+			{
+				waterLevel = WATERLEVEL_HEAD;
+			}
+		}
+	}
+
+	// resolve which specific liquid entity (if any) is touched at the deepest
+	// currently-valid check point, so EnterLiquid/ExitLiquid get a real entity
+	// pointer to work with instead of just a content bitmask
+	idEntity* newWaterBody = NULL;
+	if( waterLevel != WATERLEVEL_NONE )
+	{
+		idBounds pointBounds( point - idVec3( 4.0f, 4.0f, 4.0f ), point + idVec3( 4.0f, 4.0f, 4.0f ) );
+		idEntity* touchList[16];
+		int numTouching = gameLocal.clip.EntitiesTouchingBounds( pointBounds, MASK_LIQUID, touchList, 16 );
+		for( int i = 0; i < numTouching; i++ )
+		{
+			if( touchList[i] != self )
+			{
+				newWaterBody = touchList[i];
+				break;
+			}
+		}
+	}
+	waterBodyPtr = newWaterBody;
+
+	// notify the owning entity of enter/exit transitions
+	if( self )
+	{
+		bool wasInWater = ( oldWaterLevel != WATERLEVEL_NONE );
+		bool isInWater = ( waterLevel != WATERLEVEL_NONE );
+
+		if( isInWater && ( !wasInWater || newWaterBody != oldWaterBody ) )
+		{
+			self->EnterLiquid( newWaterBody );
+		}
+		else if( !isInWater && wasInWater )
+		{
+			self->ExitLiquid( oldWaterBody );
+		}
+	}
+}
+
+/*
+================
+idPhysics_Actor::GetWaterLevel
+================
+*/
+waterLevel_t idPhysics_Actor::GetWaterLevel() const
+{
+	return waterLevel;
+}
+
+/*
+================
+idPhysics_Actor::GetWaterType
+================
+*/
+int idPhysics_Actor::GetWaterType() const
+{
+	return waterType;
+}
+
+/*
+================
+idPhysics_Actor::GetWaterBody
+================
+*/
+idEntity* idPhysics_Actor::GetWaterBody() const
+{
+	return waterBodyPtr.GetEntity();
+}
+// RB end

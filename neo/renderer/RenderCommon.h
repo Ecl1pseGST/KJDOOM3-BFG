@@ -851,8 +851,10 @@ enum bindingLayoutType_t
 	// NVRHI render passes specific
 	BINDING_LAYOUT_MIPMAPGEN,
 
+	// RB: BINDING_LAYOUT_TAA_RESOLVE removed - TAA has been removed entirely.
+	// BINDING_LAYOUT_TAA_MOTION_VECTORS kept - shared with motion blur.
 	BINDING_LAYOUT_TAA_MOTION_VECTORS,
-	BINDING_LAYOUT_TAA_RESOLVE,
+	// RB end
 
 	BINDING_LAYOUT_TONEMAP,
 	BINDING_LAYOUT_HISTOGRAM,
@@ -1089,7 +1091,14 @@ extern idCVar r_useValidationLayers;
 extern idCVar r_vidMode;					// video mode number
 extern idCVar r_displayRefresh;				// optional display refresh rate option for vid mode
 extern idCVar r_fullscreen;					// 0 = windowed, 1 = full screen
-extern idCVar r_antiAliasing;				// anti aliasing mode, SMAA, TXAA, MSAA etc.
+// RB: independent AA toggles, replacing the old mutually-exclusive r_antiAliasing enum
+extern idCVar r_useMSAA;
+extern idCVar r_msaaSamples;
+extern idCVar r_useSMAA;
+extern idCVar r_smaaQuality;
+extern idCVar r_useCMAA2;
+extern idCVar r_cmaa2Quality;
+// RB end
 
 extern idCVar r_znear;						// near Z clip plane
 
@@ -1277,13 +1286,9 @@ extern idCVar r_ssrMaxSteps;
 extern idCVar r_ssrStride;
 extern idCVar r_ssrZThickness;
 
-extern idCVar r_useTemporalAA;
-extern idCVar r_taaJitter;
-extern idCVar r_taaEnableHistoryClamping;
-extern idCVar r_taaClampingFactor;
-extern idCVar r_taaNewFrameWeight;
-extern idCVar r_taaMaxRadiance;
+// RB: kept despite the name - shared with the motion blur post effect
 extern idCVar r_taaMotionVectors;
+// RB end
 
 extern idCVar r_useFilmicPostFX;
 extern idCVar r_useCRTPostFX;
@@ -1324,8 +1329,6 @@ INITIALIZATION
 */
 
 bool R_UsePixelatedLook();
-
-bool R_UseTemporalAA();
 
 bool R_UseHiZ();
 

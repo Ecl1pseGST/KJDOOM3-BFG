@@ -78,12 +78,20 @@ idCVar r_debugContext( "r_debugContext", "0", CVAR_RENDERER, "Enable various lev
 
 idCVar r_useValidationLayers( "r_useValidationLayers", "1", CVAR_INTEGER | CVAR_INIT | CVAR_NEW, "1 is just the NVRHI and 2 will turn on additional DX12, VK validation layers" );
 
-// RB: disabled 16x MSAA
-#if ID_MSAA
-	idCVar r_antiAliasing( "r_antiAliasing", "1", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_INTEGER | CVAR_NEW, " 0 = None\n 1 = TAA 1x\n 2 = TAA + SMAA 1x\n 3 = MSAA 2x\n 4 = MSAA 4x\n", 0, ANTI_ALIASING_MSAA_4X );
-#else
-	idCVar r_antiAliasing( "r_antiAliasing", "2", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_INTEGER | CVAR_NEW, " 0 = None\n 1 = SMAA 1x\n 2 = TAA", 0, ANTI_ALIASING_TAA );
-#endif
+// RB: independent anti-aliasing toggles, replacing the old mutually-exclusive
+// r_antiAliasing enum (which forced picking exactly one of None/TAA/SMAA/MSAA).
+// Any combination of these three can now be enabled at once, or none at all.
+// TAA has been removed entirely - it doesn't coexist with MSAA cleanly (both
+// want to own the final resolve step) and CMAA2 covers the shader/temporal
+// aliasing case TAA used to handle without the ghosting/blur tradeoffs.
+idCVar r_useMSAA( "r_useMSAA", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL | CVAR_NEW, "enable hardware multisample anti-aliasing" );
+idCVar r_msaaSamples( "r_msaaSamples", "4", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_INTEGER | CVAR_NEW, "MSAA sample count: 2, 4, or 8", 2, 8 );
+
+idCVar r_useSMAA( "r_useSMAA", "1", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL | CVAR_NEW, "enable SMAA (subpixel morphological anti-aliasing) post-process pass" );
+idCVar r_smaaQuality( "r_smaaQuality", "2", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_INTEGER | CVAR_NEW, "SMAA quality preset: 0 = low, 1 = medium, 2 = high, 3 = ultra", 0, 3 );
+
+idCVar r_useCMAA2( "r_useCMAA2", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL | CVAR_NEW, "enable CMAA2 (conservative morphological anti-aliasing v2) compute-shader post-process pass" );
+idCVar r_cmaa2Quality( "r_cmaa2Quality", "2", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_INTEGER | CVAR_NEW, "CMAA2 quality preset: 0 = low, 1 = medium, 2 = high, 3 = ultra", 0, 3 );
 // RB end
 idCVar r_vidMode( "r_vidMode", "0", CVAR_ARCHIVE | CVAR_RENDERER | CVAR_INTEGER, "fullscreen video mode number" );
 idCVar r_displayRefresh( "r_displayRefresh", "0", CVAR_RENDERER | CVAR_INTEGER | CVAR_NOCHEAT, "optional display refresh rate option for vid mode", 0.0f, 240.0f );
@@ -299,13 +307,13 @@ idCVar r_ssrMaxSteps( "r_ssrMaxSteps", "100", CVAR_RENDERER | CVAR_FLOAT | CVAR_
 idCVar r_ssrStride( "r_ssrStride", "12", CVAR_RENDERER | CVAR_FLOAT | CVAR_NEW, "" );
 idCVar r_ssrZThickness( "r_ssrZThickness", "2", CVAR_RENDERER | CVAR_FLOAT | CVAR_NEW, "" );
 
-idCVar r_useTemporalAA( "r_useTemporalAA", "1", CVAR_RENDERER | CVAR_BOOL | CVAR_NEW, "only disable for debugging" );
-idCVar r_taaJitter( "r_taaJitter", "1", CVAR_RENDERER | CVAR_INTEGER | CVAR_NEW, "0: None, 1: MSAA, 2: Halton, 3: R2 Sequence, 4: White Noise" );
-idCVar r_taaEnableHistoryClamping( "r_taaEnableHistoryClamping", "1", CVAR_RENDERER | CVAR_BOOL | CVAR_NEW, "" );
-idCVar r_taaClampingFactor( "r_taaClampingFactor", "1.0", CVAR_RENDERER | CVAR_FLOAT | CVAR_NEW, "" );
-idCVar r_taaNewFrameWeight( "r_taaNewFrameWeight", "0.1", CVAR_RENDERER | CVAR_FLOAT | CVAR_NEW, "" );
-idCVar r_taaMaxRadiance( "r_taaMaxRadiance", "10000", CVAR_RENDERER | CVAR_FLOAT | CVAR_NEW, "" );
-idCVar r_taaMotionVectors( "r_taaMotionVectors", "1", CVAR_RENDERER | CVAR_BOOL | CVAR_NEW, "" );
+// RB: TAA-specific cvars removed entirely - see the independent MSAA/SMAA/
+// CMAA2 toggles near the top of this file instead. r_taaMotionVectors is
+// kept despite the name - DrawMotionVectors() in RenderBackend.cpp uses it
+// to gate motion vector generation, which the motion blur post effect still
+// needs even with TAA gone.
+idCVar r_taaMotionVectors( "r_taaMotionVectors", "1", CVAR_RENDERER | CVAR_BOOL | CVAR_NEW, "enable motion vector generation, used by the motion blur post effect" );
+// RB end
 
 idCVar r_useCRTPostFX( "r_useCRTPostFX", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_INTEGER | CVAR_NEW, "RetroArch CRT shader: 1 = Matthias CRT, 1 = New Pixie, 2 = Zfast", 0, 3 );
 idCVar r_crtCurvature( "r_crtCurvature", "2", CVAR_RENDERER | CVAR_FLOAT | CVAR_NEW, "rounded borders" );
@@ -333,32 +341,9 @@ bool R_UsePixelatedLook()
 	return ( r_renderMode.GetInteger() == RENDERMODE_PSX ) || image_pixelLook.GetBool();
 }
 
-bool R_UseTemporalAA()
-{
-	if( !r_useTemporalAA.GetBool() )
-	{
-		return false;
-	}
-
-	if( r_renderMode.GetInteger() != RENDERMODE_DOOM )
-	{
-		return false;
-	}
-
-	switch( r_antiAliasing.GetInteger() )
-	{
-		case ANTI_ALIASING_TAA:
-			return true;
-
-#if ID_MSAA
-		case ANTI_ALIASING_TAA_SMAA_1X:
-			return true;
-#endif
-
-		default:
-			return false;
-	}
-}
+// RB: R_UseTemporalAA removed - TAA has been removed entirely in favor of
+// independent MSAA/SMAA/CMAA2 toggles
+// RB end
 
 bool R_UseHiZ()
 {
@@ -375,21 +360,21 @@ bool R_UseHiZ()
 
 uint R_GetMSAASamples()
 {
-#if ID_MSAA
-	switch( r_antiAliasing.GetInteger() )
+	// RB: MSAA is now an independent runtime toggle rather than gated behind
+	// a compile-time flag
+	if( !r_useMSAA.GetBool() )
 	{
-		case ANTI_ALIASING_MSAA_2X:
-			return 2;
-
-		case ANTI_ALIASING_MSAA_4X:
-			return 4;
-
-		default:
-			return 1;
+		return 1;
 	}
-#else
-	return 1;
-#endif
+
+	int samples = r_msaaSamples.GetInteger();
+	if( samples == 2 || samples == 4 || samples == 8 )
+	{
+		return samples;
+	}
+
+	return 4;
+	// RB end
 }
 
 /*
@@ -478,27 +463,10 @@ void R_SetNewMode( const bool fullInit )
 			}
 		}
 
-		switch( r_antiAliasing.GetInteger() )
-		{
-#if ID_MSAA
-			case ANTI_ALIASING_MSAA_2X:
-				parms.multiSamples = 2;
-				break;
-			case ANTI_ALIASING_MSAA_4X:
-				parms.multiSamples = 4;
-				break;
-#elif defined( _MSC_VER )			// SRS: #pragma warning is MSVC specific
-#pragma warning( push )
-#pragma warning( disable : 4065 )	// C4065: switch statement contains 'default' but no 'case'
-#endif
-
-			default:
-				parms.multiSamples = 1;
-				break;
-		}
-#if !ID_MSAA && defined( _MSC_VER )
-#pragma warning( pop )
-#endif
+		// RB: multiSamples now comes directly from the independent r_useMSAA/
+		// r_msaaSamples cvars instead of the old r_antiAliasing mode switch
+		parms.multiSamples = R_GetMSAASamples();
+		// RB end
 
 		if( fullInit )
 		{
@@ -564,7 +532,12 @@ safeMode:
 		r_vidMode.SetInteger( 0 );
 		r_fullscreen.SetInteger( safeDisplay + 1 );
 		r_displayRefresh.SetInteger( 0 );
-		r_antiAliasing.SetInteger( 0 );
+		// RB: reset all AA toggles for safe mode, replacing the old single
+		// r_antiAliasing reset
+		r_useMSAA.SetBool( false );
+		r_useSMAA.SetBool( false );
+		r_useCMAA2.SetBool( false );
+		// RB end
 	}
 }
 

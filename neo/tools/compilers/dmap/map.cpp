@@ -346,30 +346,9 @@ static void ParseBrush( const idMapBrush* mapBrush, int primitiveNum )
 
 		ms->GetTextureVectors( s->texVec.v );
 
-		// RB: Valve 220 projection support
-		s->texValve220 = ( ms->GetProjectionType() == idMapBrushSide::PROJECTION_VALVE220 );
-
-		// RB: we don't need this info if we are actually compiling maps in the original format
-		// we only load this for the engine in the case we want to convert it to the Valve 220 format
-		if( s->texValve220 )
-		{
-			s->texSize = ms->GetTextureSize();
-
-			idImage* image = s->material->GetEditorImage();
-			if( image != NULL )
-			{
-				s->texSize.x = image->GetUploadWidth();
-				s->texSize.y = image->GetUploadHeight();
-			}
-		}
-		// RB end
-
 		// remove any integral shift, which will help with grouping
-		if( !s->texValve220 )
-		{
-			s->texVec.v[0][3] -= floor( s->texVec.v[0][3] );
-			s->texVec.v[1][3] -= floor( s->texVec.v[1][3] );
-		}
+		s->texVec.v[0][3] -= floor( s->texVec.v[0][3] );
+		s->texVec.v[1][3] -= floor( s->texVec.v[1][3] );
 	}
 
 	// if there are mirrored planes, the entire brush is invalid

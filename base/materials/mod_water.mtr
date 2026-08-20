@@ -1,0 +1,53 @@
+// RB: BO3-style flowmap water material template.
+//
+// This ties together two separate systems built this project:
+//   - gameplay water physics (the "water" surfaceparm below gives this brush
+//     CONTENTS_WATER, so idPhysics_Actor::SetWaterLevel picks it up for
+//     swim/buoyancy/drowning - see the water physics work earlier)
+//   - the visual flowmap shader (waterFlow.vs.hlsl/waterFlow.ps.hlsl)
+//
+// Duplicate this per distinct water surface in your map (different flow
+// patterns, tint colors, tiling, etc. per instance) - it's a working
+// EXAMPLE, not a single shared material every water brush should reference
+// verbatim.
+//
+// Required source textures:
+//   - a flowmap (RG = flow direction, remapped from [0,1] storage to
+//     [-1,1] in the shader). Paint one in an editor like Flow Map Painter,
+//     or export from your DCC tool. A flat (128,128,0) gray texture reads
+//     as "no flow" - a reasonable placeholder to start from.
+//   - a normal+gloss map (RGB = tangent-space normal, A = gloss) - the same
+//     combined convention the PBR specular workflow uses, see
+//     docs/PBR_MATERIALS.md. The makeMaterials console command can build one
+//     of these automatically from separate _normal + _gloss source files.
+//
+// Tunable per-material parameters:
+//   vertexParm 0   time, specColor.r, specColor.g, specColor.b
+//   vertexParm 1   screenDistortMagnitude, flowStrength, tiling
+textures/liquid/mod_flowwater_example
+{
+	qer_editorimage textures/liquid/mod_flowwater_example_normalgloss.tga
+
+	noshadows
+	water
+	twoSided
+	translucent
+	sort decal
+
+	{
+		vertexProgram   waterFlow.vs.hlsl
+		fragmentProgram waterFlow.ps.hlsl
+
+		// time (x), specular tint color rgb (yzw) - a pale blue-white works
+		// well for most fresh water; push toward green/yellow for slime-
+		// tinted water, or a murkier gray for muddy/dirty water
+		vertexParm 0   time, 0.35, 0.45, 0.5
+
+		// screen distortion magnitude (x), flow strength (y), UV tiling (z)
+		vertexParm 1   0.5, 0.06, 2.0
+
+		fragmentMap 0  _currentRender
+		fragmentMap 1  textures/liquid/mod_flowwater_example_normalgloss.tga
+		fragmentMap 2  textures/liquid/mod_flowwater_example_flowmap.tga
+	}
+}

@@ -90,20 +90,10 @@ enum graphicsGpuType_t
 	GPU_TYPE_OTHER
 };
 
-#define ID_MSAA 0
-
-enum antiAliasingMode_t
-{
-	ANTI_ALIASING_NONE,
-	ANTI_ALIASING_SMAA_1X,
-	ANTI_ALIASING_TAA,
-
-#if ID_MSAA
-	ANTI_ALIASING_TAA_SMAA_1X,
-	ANTI_ALIASING_MSAA_2X,
-	ANTI_ALIASING_MSAA_4X,
-#endif
-};
+// RB: antiAliasingMode_t and ID_MSAA removed - MSAA/SMAA/CMAA2 are now
+// independent runtime cvars (r_useMSAA, r_useSMAA, r_useCMAA2) rather than a
+// single compile-time-gated mode enum. See RenderSystem_init.cpp.
+// RB end
 
 // CPU counters and timers
 struct performanceCounters_t

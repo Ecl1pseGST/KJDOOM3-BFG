@@ -611,6 +611,16 @@ public:
 	void					SetCurrentHeartRate();
 	int						GetBaseHeartRate();
 	void					UpdateAir();
+	// RB: lava/slime contact damage - separate from UpdateAir's suffocation timer
+	void					UpdateHazardLiquid();
+	// RB end
+	// RB: public accessor so PlayerView (and other external systems) can query
+	// water state without needing direct access to the private physicsObj
+	waterLevel_t			GetWaterLevel() const
+	{
+		return physicsObj.GetWaterLevel();
+	}
+	// RB end
 
 	void					UpdatePowerupHud();
 
@@ -842,6 +852,13 @@ private:
 	bool					airless;
 	int						airMsec;				// set to pm_airMsec at start, drops in vacuum
 	int						lastAirDamage;
+
+	// RB: hazard liquid damage timing (lava/slime) - separate from the air/breath
+	// timer above since these are direct damage-on-contact hazards, not a
+	// suffocation timer
+	int						lastLavaDamage;
+	int						lastSlimeDamage;
+	// RB end
 
 	bool					gibDeath;
 	bool					gibsLaunched;

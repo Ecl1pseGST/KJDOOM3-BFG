@@ -466,6 +466,11 @@ public:
 	const idMaterial* 	bfgMaterial;		// when targeted with BFG
 	float				lastDamageTime;		// accentuate the tunnel effect for a while
 
+	// RB: underwater screen tint
+	const idMaterial* 	underwaterMaterial;	// full-screen tint while submerged
+	float				underwaterFade;		// current blend alpha, ramps toward target each frame
+	// RB end
+
 	idVec4				fadeColor;			// fade color
 	idVec4				fadeToColor;		// color to fade to
 	idVec4				fadeFromColor;		// color to fade from

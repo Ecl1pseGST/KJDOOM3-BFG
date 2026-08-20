@@ -867,6 +867,11 @@ typedef enum
 #define	MASK_PLAYERSOLID			(CONTENTS_SOLID|CONTENTS_PLAYERCLIP|CONTENTS_BODY)
 #define	MASK_DEADSOLID				(CONTENTS_SOLID|CONTENTS_PLAYERCLIP)
 #define	MASK_WATER					(CONTENTS_WATER)
+// RB: any liquid an actor can be submerged in / float in, for buoyancy and swim
+// detection purposes. Which specific liquid it is (water vs lava vs slime/acid)
+// is then read back from waterType by gameplay code to decide damage response.
+#define MASK_LIQUID					(CONTENTS_WATER|CONTENTS_LAVA|CONTENTS_SLIME)
+// RB end
 #define	MASK_OPAQUE					(CONTENTS_OPAQUE)
 #define	MASK_SHOT_RENDERMODEL		(CONTENTS_SOLID|CONTENTS_RENDERMODEL)
 #define	MASK_SHOT_BOUNDINGBOX		(CONTENTS_SOLID|CONTENTS_BODY)

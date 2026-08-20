@@ -3151,13 +3151,30 @@ void idCollisionModelManagerLocal::ConvertBrush( cm_model_t* model, const idMapB
 		planes[i].TranslateSelf( reverseOriginOffset );
 	}
 
+	// RB: aggregate content flags from ALL sides, not just [0, numSides-2).
+	// A brush can have a non-content-bearing material (e.g. common/caulk) on every
+	// face but one (e.g. only the exposed face uses a water/lava/trigger material),
+	// and that one face can end up at *any* index depending on how it was authored.
+	// The old loop below only visited sides [0, numSides-2] because it was written
+	// to skip building a winding for the last side (fine for bounds purposes, since
+	// the last plane's extent is implied by the other sides of a closed brush) - but
+	// content-flag aggregation was folded into the same loop, so any brush whose only
+	// content-bearing face happened to be the last one silently got contents == 0
+	// and was dropped from collision entirely below.
+	for( i = 0; i < mapBrush->GetNumSides(); i++ )
+	{
+		mapSide = mapBrush->GetSide( i );
+		material = declManager->FindMaterial( mapSide->GetMaterial() );
+		contents |= ( material->GetContentFlags() & CONTENTS_REMOVE_UTIL );
+	}
+	// RB end
+
 	// we are only getting the bounds for the brush so there's no need
 	// to create a winding for the last brush side
 	for( i = 0; i < mapBrush->GetNumSides() - 1; i++ )
 	{
 		mapSide = mapBrush->GetSide( i );
 		material = declManager->FindMaterial( mapSide->GetMaterial() );
-		contents |= ( material->GetContentFlags() & CONTENTS_REMOVE_UTIL );
 		w.BaseForPlane( -planes[i] );
 		for( j = 0; j < mapBrush->GetNumSides() && w.GetNumPoints(); j++ )
 		{

@@ -960,6 +960,7 @@ entityDef player_base {
 	"snd_hitFlesh"						"player_sounds_hitFlesh"
 	"snd_airGasp"						"player_sounds_airGasp"
 	"snd_noAir"							"player_sounds_noAir"
+	"snd_underwater"					"player_sounds_underwater"
 	"snd_berserk_third"					"player_sounds_berserk"
 	"snd_teleport_exit"					"player_sounds_teleportExit"
 	"snd_teleport_start"				"player_sounds_teleportStart"

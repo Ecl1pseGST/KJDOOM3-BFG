@@ -41,6 +41,17 @@ If you have questions concerning this license or the applicable additional terms
 ===================================================================================
 */
 
+// RB: water level shared by all actors (players, monsters) so that AI can
+// detect and react to water the same way the player does.
+typedef enum
+{
+	WATERLEVEL_NONE,
+	WATERLEVEL_FEET,
+	WATERLEVEL_WAIST,
+	WATERLEVEL_HEAD
+} waterLevel_t;
+// RB end
+
 class idPhysics_Actor : public idPhysics_Base
 {
 
@@ -94,6 +105,13 @@ public:	// common physics interface
 
 	bool					EvaluateContacts();
 
+	// RB: water detection shared by all actors
+	// feed back from last evaluate
+	waterLevel_t			GetWaterLevel() const;
+	int						GetWaterType() const;
+	idEntity* 				GetWaterBody() const;
+	// RB end
+
 protected:
 	idClipModel* 			clipModel;			// clip model used for collision detection
 	idMat3					clipModelAxis;		// axis of clip model aligned with gravity direction
@@ -109,6 +127,16 @@ protected:
 
 	// results of last evaluate
 	idEntityPtr<idEntity>	groundEntityPtr;
+
+	// RB: results of last water level check, shared by all actors (player, monsters)
+	waterLevel_t			waterLevel;
+	int						waterType;
+	idEntityPtr<idEntity>	waterBodyPtr;		// the idLiquid entity currently touched, if any
+
+	// checks water level at feet/waist/head accounting for the clip model bounds
+	// and notifies self (idEntity::EnterLiquid/ExitLiquid) on state transitions
+	void					SetWaterLevel();
+	// RB end
 };
 
 #endif /* !__PHYSICS_ACTOR_H__ */

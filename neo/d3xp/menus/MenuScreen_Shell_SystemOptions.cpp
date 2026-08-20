@@ -33,13 +33,23 @@ If you have questions concerning this license or the applicable additional terms
 const static int NUM_SYSTEM_OPTIONS_OPTIONS = 8;
 
 extern idCVar r_graphicsAPI;
-extern idCVar r_antiAliasing;
+// RB: independent AA toggles, replacing the old mutually-exclusive r_antiAliasing
+extern idCVar r_useMSAA;
+extern idCVar r_msaaSamples;
+extern idCVar r_useSMAA;
+extern idCVar r_useCMAA2;
+// RB end
 extern idCVar r_useFilmicPostFX;
 extern idCVar r_swapInterval;
 extern idCVar s_volume_dB;
 extern idCVar r_exposure; // RB: use this to control HDR exposure or brightness in LDR mode
 extern idCVar r_lightScale;
 extern idCVar r_useSSR;
+
+// RB: GetAntialiasingPresetIndex/SetAntialiasingPreset removed - the
+// preset-cycling stopgap has been replaced with real independent MSAA/SMAA
+// toggle and sample-count widgets below
+// RB end
 
 /*
 ========================
@@ -109,13 +119,32 @@ void idMenuScreen_Shell_SystemOptions::Initialize( idMenuHandler* data )
 	control->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, idMenuDataSource_SystemSettings::SYSTEM_FIELD_VSYNC );
 	options->AddChild( control );
 
+	// RB: independent MSAA/SMAA toggle and sample-count widgets, replacing
+	// the old single preset-cycling Antialiasing widget
 	control = new( TAG_SWF ) idMenuWidget_ControlButton();
 	control->SetOptionType( OPTION_SLIDER_TEXT );
-	control->SetLabel( "#str_04128" );
-	control->SetDataSource( &systemData, idMenuDataSource_SystemSettings::SYSTEM_FIELD_ANTIALIASING );
+	control->SetLabel( "MSAA" );
+	control->SetDataSource( &systemData, idMenuDataSource_SystemSettings::SYSTEM_FIELD_MSAA_TOGGLE );
 	control->SetupEvents( DEFAULT_REPEAT_TIME, options->GetChildren().Num() );
-	control->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, idMenuDataSource_SystemSettings::SYSTEM_FIELD_ANTIALIASING );
+	control->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, idMenuDataSource_SystemSettings::SYSTEM_FIELD_MSAA_TOGGLE );
 	options->AddChild( control );
+
+	control = new( TAG_SWF ) idMenuWidget_ControlButton();
+	control->SetOptionType( OPTION_SLIDER_TEXT );
+	control->SetLabel( "MSAA Samples" );
+	control->SetDataSource( &systemData, idMenuDataSource_SystemSettings::SYSTEM_FIELD_MSAA_SAMPLES );
+	control->SetupEvents( DEFAULT_REPEAT_TIME, options->GetChildren().Num() );
+	control->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, idMenuDataSource_SystemSettings::SYSTEM_FIELD_MSAA_SAMPLES );
+	options->AddChild( control );
+
+	control = new( TAG_SWF ) idMenuWidget_ControlButton();
+	control->SetOptionType( OPTION_SLIDER_TEXT );
+	control->SetLabel( "SMAA" );
+	control->SetDataSource( &systemData, idMenuDataSource_SystemSettings::SYSTEM_FIELD_SMAA_TOGGLE );
+	control->SetupEvents( DEFAULT_REPEAT_TIME, options->GetChildren().Num() );
+	control->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, idMenuDataSource_SystemSettings::SYSTEM_FIELD_SMAA_TOGGLE );
+	options->AddChild( control );
+	// RB end
 
 	// RB begin
 	control = new( TAG_SWF ) idMenuWidget_ControlButton();
@@ -438,7 +467,11 @@ void idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings::LoadData
 {
 	originalRenderAPI = r_graphicsAPI.GetString();
 	originalFramerate = com_engineHz.GetInteger();
-	originalAntialias = r_antiAliasing.GetInteger();
+	// RB: independent MSAA/SMAA tracking, replacing originalAntialias
+	originalMSAAEnabled = r_useMSAA.GetBool();
+	originalMSAASamples = r_msaaSamples.GetInteger();
+	originalSMAAEnabled = r_useSMAA.GetBool();
+	// RB end
 	originalVsync = r_swapInterval.GetInteger();
 	originalBrightness = r_exposure.GetFloat();
 	originalVolume = s_volume_dB.GetFloat();
@@ -469,12 +502,11 @@ idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings::IsRestartRequ
 */
 bool idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings::IsRestartRequired() const
 {
-	/*
-	if( originalAntialias != r_antiAliasing.GetInteger() )
-	{
-		return true;
-	}
-	*/
+	// RB: AA settings don't require a restart - MSAA sample count changes
+	// trigger a live swapchain rebuild instead (see sdl_vkimp.cpp/
+	// win_glimp.cpp UpdateWindowSize), and SMAA is a pure post-process
+	// toggle with no swapchain implications
+	// RB end
 
 	if( idStr::Icmp( r_graphicsAPI.GetString(), originalRenderAPI ) != 0 )
 	{
@@ -589,31 +621,30 @@ void idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings::AdjustFi
 			r_swapInterval.SetInteger( AdjustOption( r_swapInterval.GetInteger(), values, numValues, adjustAmount ) );
 			break;
 		}
-		case SYSTEM_FIELD_ANTIALIASING:
+		// RB: independent MSAA/SMAA toggle and sample-count fields, replacing
+		// the old single preset-cycling case
+		case SYSTEM_FIELD_MSAA_TOGGLE:
 		{
-#if ID_MSAA
-			static const int numValues = 5;
-			static const int values[numValues] =
-			{
-				ANTI_ALIASING_NONE,
-				ANTI_ALIASING_TAA,
-				ANTI_ALIASING_TAA_SMAA_1X,
-				ANTI_ALIASING_MSAA_2X,
-				ANTI_ALIASING_MSAA_4X,
-			};
-#else
-			static const int numValues = 3;
-			static const int values[numValues] =
-			{
-				ANTI_ALIASING_NONE,
-				ANTI_ALIASING_SMAA_1X,
-				ANTI_ALIASING_TAA,
-			};
-#endif
-
-			r_antiAliasing.SetInteger( AdjustOption( r_antiAliasing.GetInteger(), values, numValues, adjustAmount ) );
+			static const int numValues = 2;
+			static const int values[numValues] = { 0, 1 };
+			r_useMSAA.SetInteger( AdjustOption( r_useMSAA.GetInteger(), values, numValues, adjustAmount ) );
 			break;
 		}
+		case SYSTEM_FIELD_MSAA_SAMPLES:
+		{
+			static const int numValues = 3;
+			static const int values[numValues] = { 2, 4, 8 };
+			r_msaaSamples.SetInteger( AdjustOption( r_msaaSamples.GetInteger(), values, numValues, adjustAmount ) );
+			break;
+		}
+		case SYSTEM_FIELD_SMAA_TOGGLE:
+		{
+			static const int numValues = 2;
+			static const int values[numValues] = { 0, 1 };
+			r_useSMAA.SetInteger( AdjustOption( r_useSMAA.GetInteger(), values, numValues, adjustAmount ) );
+			break;
+		}
+		// RB end
 		// RB begin
 		case SYSTEM_FIELD_RENDERMODE:
 		{
@@ -764,39 +795,33 @@ idSWFScriptVar idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings
 				return "#str_swf_disabled";
 			}
 
-		case SYSTEM_FIELD_ANTIALIASING:
-		{
-			if( r_antiAliasing.GetInteger() == 0 )
+		// RB: independent MSAA/SMAA toggle and sample-count fields, replacing
+		// the old single preset-based case
+		case SYSTEM_FIELD_MSAA_TOGGLE:
+			if( r_useMSAA.GetInteger() > 0 )
+			{
+				return "#str_swf_enabled";
+			}
+			else
 			{
 				return "#str_swf_disabled";
 			}
 
-#if ID_MSAA
-			static const int numValues = 5;
-			static const char* values[numValues] =
-			{
-				"None",
-				"TAA",
-				"TAA + SMAA 1X",
-				"MSAA 2X",
-				"MSAA 4X",
-			};
-
-			compile_time_assert( numValues == ( ANTI_ALIASING_MSAA_4X + 1 ) );
-#else
-			static const int numValues = 3;
-			static const char* values[numValues] =
-			{
-				"None",
-				"SMAA",
-				"TAA"
-			};
-
-			compile_time_assert( numValues == ( ANTI_ALIASING_TAA + 1 ) );
-#endif
-
-			return values[ r_antiAliasing.GetInteger() ];
+		case SYSTEM_FIELD_MSAA_SAMPLES:
+		{
+			return va( "%ix", r_msaaSamples.GetInteger() );
 		}
+
+		case SYSTEM_FIELD_SMAA_TOGGLE:
+			if( r_useSMAA.GetInteger() > 0 )
+			{
+				return "#str_swf_enabled";
+			}
+			else
+			{
+				return "#str_swf_disabled";
+			}
+		// RB end
 		case SYSTEM_FIELD_RENDERMODE:
 		{
 			static const int numValues = 10;
@@ -896,10 +921,14 @@ bool idMenuScreen_Shell_SystemOptions::idMenuDataSource_SystemSettings::IsDataCh
 		return true;
 	}
 
-	if( originalAntialias != r_antiAliasing.GetInteger() )
+	// RB: independent MSAA/SMAA change tracking, replacing originalAntialias
+	if( originalMSAAEnabled != r_useMSAA.GetBool() ||
+			originalMSAASamples != r_msaaSamples.GetInteger() ||
+			originalSMAAEnabled != r_useSMAA.GetBool() )
 	{
 		return true;
 	}
+	// RB end
 
 	if( originalVsync != r_swapInterval.GetInteger() )
 	{

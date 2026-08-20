@@ -383,6 +383,12 @@ public:
 	// called from the physics object when colliding, should return true if the physics simulation should stop
 	virtual bool			Collide( const trace_t& collision, const idVec3& velocity );
 
+	// RB: called from the physics object when entering/leaving a body of water,
+	// liquidEnt is the idLiquid entity touched, if any (may be NULL for a plain water brush)
+	virtual void			EnterLiquid( idEntity* liquidEnt );
+	virtual void			ExitLiquid( idEntity* liquidEnt );
+	// RB end
+
 	// retrieves impact information, 'ent' is the entity retrieving the info
 	virtual void			GetImpactInfo( idEntity* ent, int id, const idVec3& point, impactInfo_t* info );
 

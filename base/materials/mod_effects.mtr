@@ -1,0 +1,24 @@
+// RB: project-specific screen/gameplay effect materials, kept separate from
+// stock Doom 3 materials so it's obvious what's ours.
+
+// full-screen underwater tint, drawn directly by idPlayerView::SingleView with
+// alpha driven from code via renderSystem->SetColor4(..., alpha) -> parm3.
+// A blue-green tone; swap red/green/blue below for a different water color
+// (e.g. tint toward green/yellow for slime, or leave lava tint-free since
+// that's meant to be brief and violent rather than atmospheric).
+textures/mod/underwater_overlay
+{
+	noshadows
+	nonsolid
+	translucent
+	qer_editorimage textures/decals/tunnel.tga
+
+	{
+		blend blend
+		map _white
+		red 0.05
+		green 0.25
+		blue 0.35
+		alpha parm3
+	}
+}

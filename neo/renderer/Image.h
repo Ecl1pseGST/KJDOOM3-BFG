@@ -603,10 +603,8 @@ public:
 	idImage*			blueNoiseImage256;
 	idImage*			currentRenderHDRImage;
 	idImage*			ldrImage;						// tonemapped result which can be used for further post processing
-	idImage*			taaMotionVectorsImage;			// motion vectors for TAA projection
-	idImage*			taaResolvedImage;
-	idImage*			taaFeedback1Image;
-	idImage*			taaFeedback2Image;
+	idImage*			taaMotionVectorsImage;			// motion vectors, shared with motion blur post effect
+	idImage*			taaResolvedImage;				// shared MSAA resolve target
 	idImage*			bloomRenderImage[2];
 	idImage*			envprobeHDRImage;
 	idImage*			envprobeDepthImage;

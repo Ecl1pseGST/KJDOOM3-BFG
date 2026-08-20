@@ -258,7 +258,7 @@ idImage* idMaterial::GetEditorImage() const
 		editorImage = globalImages->ImageFromFile( editorImageName, TF_DEFAULT, TR_REPEAT, TD_DIFFUSE );
 
 		// look for the diffusemap alternative like TrenchBroom does
-		// this is required to have the texture dimensions for the convertMapToValve220 cmd
+		// this is required to have the texture dimensions available for editor previews
 		if( editorImage && /*editorImage->IsLoaded() &&*/ editorImage->IsDefaulted() )
 		{
 			// _D3XP :: First check for a diffuse image, then use the first
@@ -320,6 +320,12 @@ static infoParm_t	infoParms[] =
 	// game relevant attributes
 	{"solid",		0,	0,	CONTENTS_SOLID },		// may need to override a clearSolid
 	{"water",		1,	0,	CONTENTS_WATER },		// used for water
+	// RB: lava/slime bits existed at the engine level but had no exposed .mtr
+	// keyword, making them unreachable from content authoring - exposing them
+	// here so mappers can flag hazard liquid variants (lava, acid/toxic slime)
+	{"lava",		1,	0,	CONTENTS_LAVA },		// used for lava - instant/near-instant lethal liquid
+	{"slime",		1,	0,	CONTENTS_SLIME },		// used for slime/acid - damage over time unless protected
+	// RB end
 	{"playerclip",	0,	0,	CONTENTS_PLAYERCLIP },	// solid to players
 	{"monsterclip",	0,	0,	CONTENTS_MONSTERCLIP },	// solid to monsters
 	{"moveableclip", 0,	0,	CONTENTS_MOVEABLECLIP }, // solid to moveable entities
@@ -4169,31 +4175,71 @@ CONSOLE_COMMAND_SHIP( makeMaterials, "Make .mtr file from a models or textures f
 
 			// ===============================
 			// test normal map
+			// RB: also check for a combined "normal+gloss" texture (RGB =
+			// normal, A = gloss/smoothness) - a common storage-efficient PBR
+			// authoring convention, and the specific one requested for the
+			// new specular/gloss workflow below
+			idStrList normalGlossNames = { "_normal_gloss", "_nrm_gloss", "_normalgloss", "_ng" };
 			idStrList normalNames = { "_normal", "_nor", "_nrm", "_nrml", "_norm", "_nor_dx", "_nor_gl", "_normal_directx", "_normal_opengl" };
 
-			for( auto& name : normalNames )
+			bool foundNormal = false;
+			bool normalHasGloss = false;
+			byte* normalGlossPic = NULL;
+			int normalGlossWidth = 0;
+			int normalGlossHeight = 0;
+
+			for( auto& name : normalGlossNames )
 			{
 				ID_TIME_T testStamp;
 				idStr testName = baseName + name + resName;
 
-				R_LoadImage( testName, NULL, NULL, NULL, &testStamp, true, NULL );
+				R_LoadImage( testName, &normalGlossPic, &normalGlossWidth, &normalGlossHeight, &testStamp, true, NULL );
 
 				if( testStamp != FILE_NOT_FOUND_TIMESTAMP )
 				{
-					if( name.Cmp( "_nor_dx" ) == 0 || name.Cmp( "_normal_directx" ) == 0 || ueMode )
-					{
-						mtrBuffer += va( "\tnormalmap invertGreen( %s )\n", testName.c_str() );
-					}
-					else
-					{
-						mtrBuffer += va( "\tnormalmap %s\n", testName.c_str() );
-					}
+					mtrBuffer += va( "\tnormalmap %s\n", testName.c_str() );
+					foundNormal = true;
+					normalHasGloss = true;
 					break;
+				}
+			}
+			// RB end
+
+			if( !foundNormal )
+			{
+				for( auto& name : normalNames )
+				{
+					ID_TIME_T testStamp;
+					idStr testName = baseName + name + resName;
+
+					R_LoadImage( testName, NULL, NULL, NULL, &testStamp, true, NULL );
+
+					if( testStamp != FILE_NOT_FOUND_TIMESTAMP )
+					{
+						if( name.Cmp( "_nor_dx" ) == 0 || name.Cmp( "_normal_directx" ) == 0 || ueMode )
+						{
+							mtrBuffer += va( "\tnormalmap invertGreen( %s )\n", testName.c_str() );
+						}
+						else
+						{
+							mtrBuffer += va( "\tnormalmap %s\n", testName.c_str() );
+						}
+						break;
+					}
 				}
 			}
 
 			// ===============================
 			// test roughness map
+			// RB: this block (roughness+metallic+ao -> "rmaomap") predates the
+			// switch to a CryEngine-style specular/gloss workflow as the
+			// default interpretation of the USE_PBR shader path. Its output
+			// is still generated (kept for anyone deliberately working with
+			// metallic-authored source textures) but will render incorrectly
+			// unless the interaction shaders are reverted to interpret this
+			// stage as metallic/roughness again. Prefer the specular+gloss
+			// block further below for new content.
+			// RB end
 			idStrList roughNames = { "_roughness", "_rough", "_rgh" };
 			byte* roughPic = NULL;
 			int roughWidth = 0;
@@ -4350,6 +4396,125 @@ CONSOLE_COMMAND_SHIP( makeMaterials, "Make .mtr file from a models or textures f
 			{
 				R_StaticFree( aoPic );
 			}
+
+			// ===============================
+			// RB: test specular color map, and route to whichever workflow the
+			// available source textures actually support:
+			//   - diffuse/albedo + specular (+/- bump), no gloss data available
+			//     -> basic/legacy set, goes to the Kenny PBR converter at
+			//        runtime (KENNY_PBR shader path - approximates PBR values
+			//        from a traditional specular texture)
+			//   - diffuse/albedo + specular COLOR + gloss (either packed in the
+			//     normal map's alpha above, or a standalone gloss map)
+			//     -> new specular/gloss workflow (USE_PBR shader path - reads
+			//        the data directly, no approximation needed)
+			idStrList specColorNames = { "_spec", "_specular", "_specularmap", "_reflection" };
+			byte* specColorPic = NULL;
+			int specColorWidth = 0;
+			int specColorHeight = 0;
+
+			for( auto& name : specColorNames )
+			{
+				ID_TIME_T testStamp;
+				idStr testName = baseName + name + resName;
+
+				R_LoadImage( testName, &specColorPic, &specColorWidth, &specColorHeight, &testStamp, true, NULL );
+				if( testStamp != FILE_NOT_FOUND_TIMESTAMP )
+				{
+					break;
+				}
+			}
+
+			// standalone gloss map, only needed if the normal map above didn't
+			// already carry gloss in its alpha channel
+			idStrList glossNames = { "_gloss", "_glossiness", "_smoothness" };
+			byte* glossPic = NULL;
+			int glossWidth = 0;
+			int glossHeight = 0;
+
+			if( !normalHasGloss )
+			{
+				for( auto& name : glossNames )
+				{
+					ID_TIME_T testStamp;
+					idStr testName = baseName + name + resName;
+
+					R_LoadImage( testName, &glossPic, &glossWidth, &glossHeight, &testStamp, true, NULL );
+					if( testStamp != FILE_NOT_FOUND_TIMESTAMP )
+					{
+						break;
+					}
+				}
+			}
+
+			bool haveGloss = normalHasGloss || ( glossPic != NULL );
+
+			if( specColorPic && haveGloss )
+			{
+				// new specular/gloss workflow
+				int c = specColorWidth * specColorHeight * 4;
+
+				if( normalHasGloss && ( normalGlossWidth == specColorWidth || normalGlossHeight == specColorHeight ) )
+				{
+					for( int j = 0; j < c; j += 4 )
+					{
+						// pull gloss from the normal+gloss map's alpha channel
+						specColorPic[j + 3] = normalGlossPic[j + 3];
+					}
+				}
+				else if( glossPic && ( glossWidth == specColorWidth || glossHeight == specColorHeight ) )
+				{
+					for( int j = 0; j < c; j += 4 )
+					{
+						// pull gloss from the standalone gloss map's red channel
+						specColorPic[j + 3] = glossPic[j + 0];
+					}
+				}
+				else
+				{
+					// sizes didn't line up - fall back to a flat mid-gloss
+					// value rather than keeping mismatched/garbage alpha data
+					for( int j = 0; j < c; j += 4 )
+					{
+						specColorPic[j + 3] = 128;
+					}
+				}
+
+				// reuse the existing "_rmao" filename convention that
+				// idMaterial::ParseStage already keys off of (see the
+				// TD_SPECULAR_PBR_RMAO check above) to select the USE_PBR
+				// shader path over the KENNY_PBR legacy path
+				idStr mergedName = baseName + "_rmao.png";
+				R_WritePNG( mergedName, static_cast<byte*>( specColorPic ), 4, specColorWidth, specColorHeight, "fs_basepath" );
+
+				mergedName.StripFileExtension();
+				mtrBuffer += va( "\tspecularmap %s\n", mergedName.c_str() );
+			}
+			else if( specColorPic )
+			{
+				// basic/legacy set - no gloss data found, deliberately does
+				// NOT use the "_rmao" suffix so it routes to the Kenny PBR
+				// converter (TD_SPECULAR) instead of the new workflow
+				idStr plainName = baseName + "_specmap.png";
+				R_WritePNG( plainName, static_cast<byte*>( specColorPic ), 4, specColorWidth, specColorHeight, "fs_basepath" );
+
+				plainName.StripFileExtension();
+				mtrBuffer += va( "\tspecularmap %s\n", plainName.c_str() );
+			}
+
+			if( specColorPic )
+			{
+				R_StaticFree( specColorPic );
+			}
+			if( glossPic )
+			{
+				R_StaticFree( glossPic );
+			}
+			if( normalGlossPic )
+			{
+				R_StaticFree( normalGlossPic );
+			}
+			// RB end
 
 			// ===============================
 			// test emmissive map

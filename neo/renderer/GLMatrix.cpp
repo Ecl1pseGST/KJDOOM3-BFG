@@ -417,22 +417,12 @@ idCVar r_centerScale( "r_centerScale", "1", CVAR_FLOAT, "projection matrix cente
 
 void R_SetupProjectionMatrix( viewDef_t* viewDef, bool doJitter )
 {
-	// random jittering is usefull when multiple
-	// frames are going to be blended together
-	// for motion blurred anti-aliasing
-	float jitterx, jittery;
-
-	if( R_UseTemporalAA() && doJitter && !( viewDef->renderView.rdflags & RDF_IRRADIANCE ) )
-	{
-		idVec2 jitter = backEnd.GetCurrentPixelOffset( viewDef->taaFrameCount );
-		jitterx = jitter.x;
-		jittery = jitter.y;
-	}
-	else
-	{
-		jitterx = 0.0f;
-		jittery = 0.0f;
-	}
+	// RB: jitter was only ever used for TAA's temporal frame blending, which
+	// has been removed - always zero now. MSAA/SMAA/CMAA2 don't use
+	// frame-to-frame jitter accumulation the way TAA did.
+	float jitterx = 0.0f;
+	float jittery = 0.0f;
+	// RB end
 
 	//
 	// set up projection matrix

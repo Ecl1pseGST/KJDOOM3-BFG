@@ -261,6 +261,50 @@ entityDef damage_noair {
 	"no_air"						"1"
 }
 
+// RB: drowning - separate from vacuum decompression above so it can have its
+// own feel (screen shake + gasp sound on every tick, via "no_air" which
+// already auto-triggers snd_airGasp)
+entityDef damage_drowning {
+	"damage"						"10"
+	"delay"							"3.0"
+	"kickDir"						"0 0 0"
+	"noArmor"						"1"
+	"knockback"						"0"
+	"kick_time"						"300"
+	"kick_amplitude"				"4"
+	"no_air"						"1"
+}
+// RB end
+
+// RB: hazard liquid variants - lava and toxic slime
+// lava: near-instant lethal, ignores armor, meant to feel like you have maybe
+// one chance to get out before it kills you. Uses "burn" so it gets the same
+// automatic burn sound reaction as fire damage.
+entityDef damage_lava {
+	"damage"						"35"
+	"delay"							"0.5"
+	"kickDir"						"0 0 0"
+	"noArmor"						"1"
+	"knockback"						"0"
+	"kick_time"						"400"
+	"kick_amplitude"				"6"
+	"burn"							"1"
+}
+
+// toxic slime: damage over time, survivable if you get out or have an
+// enviro suit (checked in code before this damage def is ever applied - the
+// suit grants full immunity, this def only fires when unprotected)
+entityDef damage_slime {
+	"damage"						"6"
+	"delay"							"1.0"
+	"kickDir"						"0 0 0"
+	"noArmor"						"0"
+	"knockback"						"0"
+	"kick_time"						"200"
+	"kick_amplitude"				"2"
+}
+// RB end
+
 entityDef damage_softfall {
 	"damage"						"10"
 	"kickDir"						"0 0 -1"

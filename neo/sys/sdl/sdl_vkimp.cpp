@@ -120,9 +120,10 @@ void DeviceManager::UpdateWindowSize( const glimpParms_t& parms )
 
 	if( int( m_DeviceParams.backBufferWidth ) != parms.width ||
 			int( m_DeviceParams.backBufferHeight ) != parms.height ||
-#if ID_MSAA
+			// RB: MSAA is now an independent runtime toggle, this check must
+			// always be active so changing sample count triggers a resize
 			int( m_DeviceParams.backBufferSampleCount ) != parms.multiSamples ||
-#endif
+			// RB end
 			( m_DeviceParams.vsyncEnabled != m_RequestedVSync && GetGraphicsAPI() == nvrhi::GraphicsAPI::VULKAN ) )
 	{
 		// window is not minimized, and the size has changed

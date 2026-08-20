@@ -117,21 +117,17 @@ void main( PS_IN fragment, out PS_OUT result )
 	float hdotN = clamp( dot3( halfAngleVector, localNormal ), 0.0, 1.0 );
 
 #if USE_PBR
-	// RB: roughness 0 somehow is not shiny so we clamp it
-	float roughness = max( 0.05, specMapSRGB.r );
-	const float metallic = specMapSRGB.g;
+	// RB: CryEngine-style specular/gloss workflow - specular map directly
+	// encodes F0 (RGB) and gloss (alpha), replacing the old Unreal-style
+	// metallic/roughness interpretation that used to live here. specMap.rgb
+	// is the linearized fetch (correct for color data), specMapSRGB.a is the
+	// raw un-decoded alpha (correct for the non-color gloss scalar).
+	float3 specularColor;
+	float roughness;
+	SpecularWorkflowPBR( specMap.rgb, specMapSRGB.a, specularColor, roughness );
 
-	// the vast majority of real-world materials (anything not metal or gems) have F(0)
-	// values in a very narrow range (~0.02 - 0.08)
-
-	// approximate non-metals with linear RGB 0.04 which is 0.08 * 0.5 (default in UE4)
-	const float3 dielectricColor = _float3( 0.04 );
-
-	// derive diffuse and specular from albedo(m) base color
-	const float3 baseColor = diffuseMap;
-
-	float3 diffuseColor = baseColor * ( 1.0 - metallic );
-	float3 specularColor = lerp( dielectricColor, baseColor, metallic );
+	float3 diffuseColor = diffuseMap;
+	// RB end
 
 #elif KENNY_PBR
 	float3 diffuseColor = diffuseMap;

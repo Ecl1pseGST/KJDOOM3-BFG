@@ -161,6 +161,26 @@ void PBRFromSpecmap( float3 specMap, out float3 F0, out float roughness )
 }
 // Kennedith98 end
 
+// RB: CryEngine-style specular/gloss workflow. Unlike PBRFromSpecmap above,
+// this does NOT approximate or guess anything - a properly authored specular-
+// workflow texture already directly IS the PBR data (RGB = F0/specular color,
+// alpha = gloss), so this just unpacks it.
+//
+// specColorLinear should be the LINEARIZED specular texture fetch (RGB is
+// color data and must be gamma-decoded like any other color texture).
+// glossRaw should be the RAW, un-decoded alpha channel fetch - gloss is a
+// scalar quantity, not color, and must NOT be run through sRGB-to-linear
+// conversion or the curve gets distorted.
+void SpecularWorkflowPBR( float3 specColorLinear, float glossRaw, out float3 F0, out float roughness )
+{
+	F0 = specColorLinear;
+
+	// RB: roughness 0 somehow is not shiny so we clamp it, matching the
+	// metallic-workflow path's existing convention
+	roughness = max( 0.05, 1.0 - glossRaw );
+}
+// RB end
+
 // https://yusuketokuyoshi.com/papers/2021/Tokuyoshi2021SAA.pdf
 
 float2x2 NonAxisAlignedNDFFiltering( float3 halfvectorTS, float2 roughness2 )
