@@ -174,8 +174,12 @@ ID_INLINE void idImage::DeriveOpts()
 				break;
 
 			case TD_SPECULAR_PBR_RMAO:
+				// RB: this must be FMT_DXT5, not FMT_DXT1 - _sgmap/_rmao
+				// textures carry gloss in the alpha channel, and DXT1 has
+				// no full alpha channel to preserve it (gloss was silently
+				// getting compressed away)
 				opts.gammaMips = false;
-				opts.format = FMT_DXT1;
+				opts.format = FMT_DXT5;
 				opts.colorFormat = CFM_DEFAULT;
 				break;
 
@@ -184,6 +188,14 @@ ID_INLINE void idImage::DeriveOpts()
 				opts.format = FMT_DXT5;
 				opts.colorFormat = CFM_DEFAULT;
 				break;
+
+			// RB: ambient occlusion mask - grayscale, non-color data
+			case TD_AMBIENT_OCCLUSION:
+				opts.gammaMips = false;
+				opts.format = FMT_DXT1;
+				opts.colorFormat = CFM_DEFAULT;
+				break;
+			// RB end
 
 			case TD_DEFAULT:
 				opts.gammaMips = true;
@@ -597,15 +609,29 @@ void idImage::ActuallyLoadImage( bool fromBackEnd, nvrhi::ICommandList* commandL
 		}
 	}
 
-	// RB: PBR HACK - RMAO maps should end with _rmao insted of _s
-	if( usage == TD_SPECULAR_PBR_RMAO )
+	// RB: PBR HACK - Specular/Gloss PBR maps should end with _sgmap instead
+	// of _s. Prefer the canonical _sgmap name for the generated/cached
+	// image name; fall back to the legacy _rmao name if only that exists
+	// on disk (older content generated before the _sgmap convention).
+	if( usage == TD_SPECULAR_PBR_RMAO || usage == TD_SPECULAR_PBR_RMAOD )
 	{
 		idStr baseName = imgName;
 		baseName.StripFileExtension();
 
 		if( baseName.StripTrailingOnce( "_s" ) )
 		{
-			imgName = baseName + "_rmao";
+			idStr sgmapName = baseName + "_sgmap";
+			ID_TIME_T sgmapStamp;
+			R_LoadImage( sgmapName, NULL, NULL, NULL, &sgmapStamp, true, NULL );
+
+			if( sgmapStamp != FILE_NOT_FOUND_TIMESTAMP )
+			{
+				imgName = sgmapName;
+			}
+			else
+			{
+				imgName = baseName + "_rmao";
+			}
 		}
 	}
 	// RB end

@@ -637,6 +637,7 @@ struct drawInteraction_t
 	idImage* 			bumpImage;
 	idImage* 			diffuseImage;
 	idImage* 			specularImage;
+	idImage* 			aoImage;	// RB: ambient occlusion - may be NULL, falls back to a neutral white texture
 
 	idVec4				diffuseColor;	// may have a light color baked into it
 	idVec4				specularColor;	// may have a light color baked into it

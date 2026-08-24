@@ -1,0 +1,123 @@
+diff --git a/neo/renderer/NVRHI/RenderBackend_NVRHI.cpp b/neo/renderer/NVRHI/RenderBackend_NVRHI.cpp
+index b3d70ce..5dd54b6 100644
+--- a/neo/renderer/NVRHI/RenderBackend_NVRHI.cpp
++++ b/neo/renderer/NVRHI/RenderBackend_NVRHI.cpp
+@@ -1510,12 +1510,29 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
+ 			{
+ 				desc[1].bindings =
+ 				{
+-					nvrhi::BindingSetItem::Sampler( 0, commonPasses.m_PointClampSampler )
++					// KJ: this shares samplerTwoBindingLayout with the
++					// interaction/material pipeline, whose established
++					// convention is slot 0 = wrap, slot 1 = clamp (see the
++					// comments on samplerTwoBindingLayoutDesc in
++					// RenderProgs.cpp) - matching that ordering here, not
++					// inventing a new one, since the layout object is
++					// shared and other consumers assume this order.
++					// Wrap (slot 0) is for the material's own tiled
++					// textures (colormap/normalmap/flowmap on
++					// waterFlow.ps.hlsl, and any other 4-texture custom-
++					// material shader on this pipeline), which need real
++					// repeat addressing to tile across a UV range that
++					// commonly extends well past [0,1] on a large surface.
++					// Clamp (slot 1) is for _currentRender specifically -
++					// a screen-space capture must never wrap.
++					nvrhi::BindingSetItem::Sampler( 0, commonPasses.m_PointWrapSampler ),
++					nvrhi::BindingSetItem::Sampler( 1, commonPasses.m_PointClampSampler )
+ 				};
+ 			}
+ 			else
+ 			{
+-				desc[1].bindings[0].resourceHandle = commonPasses.m_PointClampSampler;
++				desc[1].bindings[0].resourceHandle = commonPasses.m_PointWrapSampler;
++				desc[1].bindings[1].resourceHandle = commonPasses.m_PointClampSampler;
+ 			}
+ 		}
+ 		else
+@@ -1524,12 +1541,16 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
+ 			{
+ 				desc[1].bindings =
+ 				{
+-					nvrhi::BindingSetItem::Sampler( 0, commonPasses.m_LinearClampSampler )
++					// KJ: see comment above (pixelated-look branch) - same
++					// reasoning and slot ordering, linear instead of point
++					nvrhi::BindingSetItem::Sampler( 0, commonPasses.m_LinearWrapSampler ),
++					nvrhi::BindingSetItem::Sampler( 1, commonPasses.m_LinearClampSampler )
+ 				};
+ 			}
+ 			else
+ 			{
+-				desc[1].bindings[0].resourceHandle = commonPasses.m_LinearClampSampler;
++				desc[1].bindings[0].resourceHandle = commonPasses.m_LinearWrapSampler;
++				desc[1].bindings[1].resourceHandle = commonPasses.m_LinearClampSampler;
+ 			}
+ 		}
+ 	}
+diff --git a/neo/renderer/RenderProgs.cpp b/neo/renderer/RenderProgs.cpp
+index 519bd86..fdb326f 100644
+--- a/neo/renderer/RenderProgs.cpp
++++ b/neo/renderer/RenderProgs.cpp
+@@ -624,7 +624,7 @@ void idRenderProgManager::Init( nvrhi::IDevice* device )
+ 							 // RenderBackend_NVRHI.cpp for the null-safety fallback this needs.
+ 							 .addItem( nvrhi::BindingLayoutItem::Texture_SRV( 3 ) );	// flow map
+ 
+-	bindingLayouts[BINDING_LAYOUT_POST_PROCESS_INGAME] = { device->createBindingLayout( pp3DBindingLayout ), samplerOneBindingLayout };
++	bindingLayouts[BINDING_LAYOUT_POST_PROCESS_INGAME] = { device->createBindingLayout( pp3DBindingLayout ), samplerTwoBindingLayout };
+ 
+ 	auto ppFxLayoutItem = layoutTypeAttributes[BINDING_LAYOUT_POST_PROCESS_FINAL].cbStatic ? nvrhi::BindingLayoutItem::ConstantBuffer( 0 ) : nvrhi::BindingLayoutItem::VolatileConstantBuffer( 0 );
+ 
+diff --git a/neo/shaders/waterFlow.ps.hlsl b/neo/shaders/waterFlow.ps.hlsl
+index 5827784..3f43c08 100644
+--- a/neo/shaders/waterFlow.ps.hlsl
++++ b/neo/shaders/waterFlow.ps.hlsl
+@@ -33,7 +33,13 @@ Texture2D t_ColorMap			: register( t1 VK_DESCRIPTOR_SET( 0 ) );	// RGB = color/t
+ Texture2D t_NormalMap			: register( t2 VK_DESCRIPTOR_SET( 0 ) );	// RGB = normal (plain, no packed gloss)
+ Texture2D t_FlowMap			: register( t3 VK_DESCRIPTOR_SET( 0 ) );	// RG = flow direction
+ 
+-SamplerState LinearSampler		: register( s0 VK_DESCRIPTOR_SET( 1 ) );
++// KJ: slot 0 = wrap, slot 1 = clamp - matches the established convention
++// of samplerTwoBindingLayout (see RenderProgs.cpp), which this pipeline
++// shares with the interaction/material pipeline. Don't swap these without
++// also swapping the matching slots in RenderBackend_NVRHI.cpp's
++// BINDING_LAYOUT_POST_PROCESS_INGAME branch.
++SamplerState LinearWrapSampler		: register( s0 VK_DESCRIPTOR_SET( 1 ) );	// colormap/normalmap/flowmap - needs to tile past [0,1]
++SamplerState LinearClampSampler	: register( s1 VK_DESCRIPTOR_SET( 1 ) );	// _currentRender only - a screen-space capture must never wrap
+ 
+ struct PS_IN {
+ 	float4 position		: SV_Position;
+@@ -70,7 +76,7 @@ void main( PS_IN fragment, out PS_OUT result )
+ 
+ 	// flowmap sample is NOT phase-distorted itself - it's the thing driving
+ 	// the distortion of everything else, so it stays on the base UV
+-	float2 flowSample = t_FlowMap.Sample( LinearSampler, baseUV ).rg;
++	float2 flowSample = t_FlowMap.Sample( LinearWrapSampler, baseUV ).rg;
+ 	float2 flowDir = ( flowSample * 2.0 ) - 1.0;
+ 
+ 	// two time phases, offset by half a cycle, each wrapping with frac() so
+@@ -88,13 +94,13 @@ void main( PS_IN fragment, out PS_OUT result )
+ 
+ 	// sample color map at both phases and blend - same flow distortion as
+ 	// the normal map, so surface color/foam detail moves with the current
+-	float3 colorMap1 = t_ColorMap.Sample( LinearSampler, uv1 ).rgb;
+-	float3 colorMap2 = t_ColorMap.Sample( LinearSampler, uv2 ).rgb;
++	float3 colorMap1 = t_ColorMap.Sample( LinearWrapSampler, uv1 ).rgb;
++	float3 colorMap2 = t_ColorMap.Sample( LinearWrapSampler, uv2 ).rgb;
+ 	float3 colorMap = lerp( colorMap1, colorMap2, blendWeight ) * tintColor;
+ 
+ 	// sample normal map at both phases and blend
+-	float3 normalMap1 = t_NormalMap.Sample( LinearSampler, uv1 ).rgb;
+-	float3 normalMap2 = t_NormalMap.Sample( LinearSampler, uv2 ).rgb;
++	float3 normalMap1 = t_NormalMap.Sample( LinearWrapSampler, uv1 ).rgb;
++	float3 normalMap2 = t_NormalMap.Sample( LinearWrapSampler, uv2 ).rgb;
+ 	float3 normalMap = lerp( normalMap1, normalMap2, blendWeight );
+ 
+ 	float2 localNormal = ( normalMap.xy * 2.0 ) - 1.0;
+@@ -106,7 +112,7 @@ void main( PS_IN fragment, out PS_OUT result )
+ 	screenTexCoord += ( localNormal * fragment.texcoord1.x );
+ 	screenTexCoord = saturate( screenTexCoord );
+ 
+-	float3 sceneColor = t_CurrentRender.Sample( LinearSampler, screenTexCoord.xy ).rgb;
++	float3 sceneColor = t_CurrentRender.Sample( LinearClampSampler, screenTexCoord.xy ).rgb;
+ 
+ 	// simple Schlick-ish Fresnel using the perturbed normal's length as a
+ 	// cheap stand-in for view angle: water looks more mirror-like at a

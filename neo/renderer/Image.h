@@ -229,8 +229,16 @@ typedef enum
 	TD_COVERAGE,			// coverage map for fill depth pass when YCoCG is used
 	TD_DEPTH,				// depth buffer copy for motion blur
 	// RB begin
-	TD_SPECULAR_PBR_RMAO,	// may be compressed, and always zeros the alpha channel, linear RGB R = roughness, G = metal, B = ambient occlusion
-	TD_SPECULAR_PBR_RMAOD,	// may be compressed, alpha channel contains displacement map
+	// RB: identifiers kept as-is for .bimage cache compatibility - despite
+	// the "RMAO" name, this is the Specular/Gloss PBR path selected by a
+	// "_sgmap" (or legacy "_rmao"/"_rmaod") filename suffix: RGB = specular
+	// color (F0), alpha = gloss. See docs/PBR_MATERIALS.md.
+	TD_SPECULAR_PBR_RMAO,	// compressed FMT_DXT5, sRGB RGB = specular color (F0), alpha = gloss
+	TD_SPECULAR_PBR_RMAOD,	// same as TD_SPECULAR_PBR_RMAO; legacy "_rmaod" variant, kept for old content
+
+	// RB: standalone ambient occlusion map, sampled live at render time
+	// (see docs/PBR_MATERIALS.md) - grayscale mask, R channel used
+	TD_AMBIENT_OCCLUSION,
 	TD_HIGHQUALITY_CUBE,	// motorsep - Uncompressed cubemap texture (RGB colorspace)
 	TD_LOWQUALITY_CUBE,		// motorsep - REMOVED
 	TD_SHADOW_ARRAY,		// 2D depth buffer array for shadow mapping

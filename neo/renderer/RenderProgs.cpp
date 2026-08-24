@@ -461,7 +461,15 @@ void idRenderProgManager::Init( nvrhi::IDevice* device )
 									 .setVisibility( nvrhi::ShaderType::Pixel )
 									 .addItem( nvrhi::BindingLayoutItem::Texture_SRV( 0 ) )		// normal
 									 .addItem( nvrhi::BindingLayoutItem::Texture_SRV( 1 ) )		// specular
-									 .addItem( nvrhi::BindingLayoutItem::Texture_SRV( 2 ) );	// base color
+									 .addItem( nvrhi::BindingLayoutItem::Texture_SRV( 2 ) )	// base color
+									 // RB: register 12, not 11 - the skinned-mesh joint buffer
+									 // (StructuredBuffer_SRV in the skinning uniformsLayoutDesc
+									 // above) already occupies t11, and StructuredBuffer_SRV and
+									 // Texture_SRV share the same "t" register namespace. Also not
+									 // t3 - VK_DESCRIPTOR_SET is a no-op for non-SPIRV builds, so t3
+									 // here would collide with t_LightFalloff/t_BrdfLut, which are
+									 // also register 3 but in a different (Vulkan-only) descriptor set
+									 .addItem( nvrhi::BindingLayoutItem::Texture_SRV( 12 ) );	// ambient occlusion
 
 	auto defaultMaterialLayout = device->createBindingLayout( defaultMaterialLayoutDesc );
 
@@ -605,10 +613,18 @@ void idRenderProgManager::Init( nvrhi::IDevice* device )
 							 .setVisibility( nvrhi::ShaderType::All )
 							 .addItem( pp3DLayoutItem )
 							 .addItem( nvrhi::BindingLayoutItem::Texture_SRV( 0 ) )		// HDR _currentRender
-							 .addItem( nvrhi::BindingLayoutItem::Texture_SRV( 1 ) )		// normal map
-							 .addItem( nvrhi::BindingLayoutItem::Texture_SRV( 2 ) );	// mask
+							 .addItem( nvrhi::BindingLayoutItem::Texture_SRV( 1 ) )		// normal map (glass) / colormap (water) - meaning is per-material, layout is shared
+							 .addItem( nvrhi::BindingLayoutItem::Texture_SRV( 2 ) )	// mask (glass) / normal map (water)
+							 // RB: 4th slot added for waterFlow.ps.hlsl's t_FlowMap - existing
+							 // materials on this same shared layout (glass/heatHaze etc.) that
+							 // only use 2-3 fragmentMaps are unaffected: their compiled shader
+							 // variants simply never declare/sample a 4th texture register, so
+							 // this extra binding slot goes unread for them. See the
+							 // BINDING_LAYOUT_POST_PROCESS_INGAME branch in
+							 // RenderBackend_NVRHI.cpp for the null-safety fallback this needs.
+							 .addItem( nvrhi::BindingLayoutItem::Texture_SRV( 3 ) );	// flow map
 
-	bindingLayouts[BINDING_LAYOUT_POST_PROCESS_INGAME] = { device->createBindingLayout( pp3DBindingLayout ), samplerOneBindingLayout };
+	bindingLayouts[BINDING_LAYOUT_POST_PROCESS_INGAME] = { device->createBindingLayout( pp3DBindingLayout ), samplerTwoBindingLayout };
 
 	auto ppFxLayoutItem = layoutTypeAttributes[BINDING_LAYOUT_POST_PROCESS_FINAL].cbStatic ? nvrhi::BindingLayoutItem::ConstantBuffer( 0 ) : nvrhi::BindingLayoutItem::VolatileConstantBuffer( 0 );
 

@@ -719,7 +719,8 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			{
 				nvrhi::BindingSetItem::Texture_SRV( 0, ( nvrhi::ITexture* )GetImageAt( 0 )->GetTextureID() ),
 				nvrhi::BindingSetItem::Texture_SRV( 1, ( nvrhi::ITexture* )GetImageAt( 1 )->GetTextureID() ),
-				nvrhi::BindingSetItem::Texture_SRV( 2, ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID() )
+				nvrhi::BindingSetItem::Texture_SRV( 2, ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID() ),
+				nvrhi::BindingSetItem::Texture_SRV( 12, ( nvrhi::ITexture* )GetImageAt( 11 )->GetTextureID() )	// RB: ambient occlusion - register 12, not 11 (see RenderProgs.cpp - t11 collides with the skinned joint buffer)
 			};
 		}
 		else
@@ -727,6 +728,7 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			desc[1].bindings[0].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 0 )->GetTextureID();
 			desc[1].bindings[1].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 1 )->GetTextureID();
 			desc[1].bindings[2].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID();
+			desc[1].bindings[3].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 11 )->GetTextureID();	// RB: ambient occlusion
 		}
 
 		if( desc[2].bindings.empty() )
@@ -808,7 +810,8 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			{
 				nvrhi::BindingSetItem::Texture_SRV( 0, ( nvrhi::ITexture* )GetImageAt( 0 )->GetTextureID() ),
 				nvrhi::BindingSetItem::Texture_SRV( 1, ( nvrhi::ITexture* )GetImageAt( 1 )->GetTextureID() ),
-				nvrhi::BindingSetItem::Texture_SRV( 2, ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID() )
+				nvrhi::BindingSetItem::Texture_SRV( 2, ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID() ),
+				nvrhi::BindingSetItem::Texture_SRV( 12, ( nvrhi::ITexture* )GetImageAt( 11 )->GetTextureID() )	// RB: ambient occlusion - register 12, not 11 (see RenderProgs.cpp - t11 collides with the skinned joint buffer)
 			};
 		}
 		else
@@ -816,6 +819,7 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			desc[1].bindings[0].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 0 )->GetTextureID();
 			desc[1].bindings[1].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 1 )->GetTextureID();
 			desc[1].bindings[2].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID();
+			desc[1].bindings[3].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 11 )->GetTextureID();	// RB: ambient occlusion
 		}
 
 		if( desc[2].bindings.empty() )
@@ -927,7 +931,8 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			{
 				nvrhi::BindingSetItem::Texture_SRV( 0, ( nvrhi::ITexture* )GetImageAt( 0 )->GetTextureID() ),
 				nvrhi::BindingSetItem::Texture_SRV( 1, ( nvrhi::ITexture* )GetImageAt( 1 )->GetTextureID() ),
-				nvrhi::BindingSetItem::Texture_SRV( 2, ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID() )
+				nvrhi::BindingSetItem::Texture_SRV( 2, ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID() ),
+				nvrhi::BindingSetItem::Texture_SRV( 12, ( nvrhi::ITexture* )GetImageAt( 11 )->GetTextureID() )	// RB: ambient occlusion - register 12, not 11 (see RenderProgs.cpp - t11 collides with the skinned joint buffer)
 			};
 		}
 		else
@@ -935,6 +940,7 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			desc[1].bindings[0].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 0 )->GetTextureID();
 			desc[1].bindings[1].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 1 )->GetTextureID();
 			desc[1].bindings[2].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID();
+			desc[1].bindings[3].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 11 )->GetTextureID();	// RB: ambient occlusion
 		}
 
 		// light projection: 2
@@ -1012,7 +1018,8 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			{
 				nvrhi::BindingSetItem::Texture_SRV( 0, ( nvrhi::ITexture* )GetImageAt( 0 )->GetTextureID() ),
 				nvrhi::BindingSetItem::Texture_SRV( 1, ( nvrhi::ITexture* )GetImageAt( 1 )->GetTextureID() ),
-				nvrhi::BindingSetItem::Texture_SRV( 2, ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID() )
+				nvrhi::BindingSetItem::Texture_SRV( 2, ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID() ),
+				nvrhi::BindingSetItem::Texture_SRV( 12, ( nvrhi::ITexture* )GetImageAt( 11 )->GetTextureID() )	// RB: ambient occlusion - register 12, not 11 (see RenderProgs.cpp - t11 collides with the skinned joint buffer)
 			};
 		}
 		else
@@ -1020,6 +1027,7 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			desc[1].bindings[0].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 0 )->GetTextureID();
 			desc[1].bindings[1].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 1 )->GetTextureID();
 			desc[1].bindings[2].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID();
+			desc[1].bindings[3].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 11 )->GetTextureID();	// RB: ambient occlusion
 		}
 
 		// light projection: 2
@@ -1093,7 +1101,8 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			{
 				nvrhi::BindingSetItem::Texture_SRV( 0, ( nvrhi::ITexture* )GetImageAt( 0 )->GetTextureID() ),
 				nvrhi::BindingSetItem::Texture_SRV( 1, ( nvrhi::ITexture* )GetImageAt( 1 )->GetTextureID() ),
-				nvrhi::BindingSetItem::Texture_SRV( 2, ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID() )
+				nvrhi::BindingSetItem::Texture_SRV( 2, ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID() ),
+				nvrhi::BindingSetItem::Texture_SRV( 12, ( nvrhi::ITexture* )GetImageAt( 11 )->GetTextureID() )	// RB: ambient occlusion - register 12, not 11 (see RenderProgs.cpp - t11 collides with the skinned joint buffer)
 			};
 		}
 		else
@@ -1102,6 +1111,7 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			bindings[0].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 0 )->GetTextureID();
 			bindings[1].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 1 )->GetTextureID();
 			bindings[2].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID();
+			bindings[3].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 11 )->GetTextureID();	// RB: ambient occlusion
 		}
 
 		// light projection: 2
@@ -1197,7 +1207,8 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			{
 				nvrhi::BindingSetItem::Texture_SRV( 0, ( nvrhi::ITexture* )GetImageAt( 0 )->GetTextureID() ),
 				nvrhi::BindingSetItem::Texture_SRV( 1, ( nvrhi::ITexture* )GetImageAt( 1 )->GetTextureID() ),
-				nvrhi::BindingSetItem::Texture_SRV( 2, ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID() )
+				nvrhi::BindingSetItem::Texture_SRV( 2, ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID() ),
+				nvrhi::BindingSetItem::Texture_SRV( 12, ( nvrhi::ITexture* )GetImageAt( 11 )->GetTextureID() )	// RB: ambient occlusion - register 12, not 11 (see RenderProgs.cpp - t11 collides with the skinned joint buffer)
 			};
 		}
 		else
@@ -1206,6 +1217,7 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			bindings[0].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 0 )->GetTextureID();
 			bindings[1].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 1 )->GetTextureID();
 			bindings[2].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID();
+			bindings[3].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 11 )->GetTextureID();	// RB: ambient occlusion
 		}
 
 		// light projection: 2
@@ -1455,6 +1467,22 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 	}
 	else if( type == BINDING_LAYOUT_POST_PROCESS_INGAME )
 	{
+		// RB: unit 3 (flow map) is only ever bound by materials that
+		// actually declare a 4th fragmentMap (currently just water). Other
+		// materials sharing this layout (glass/heatHaze etc.) never call
+		// GL_SelectTexture(3), so GetImageAt(3) can still be a raw null
+		// pointer left over from renderer init the first time ANY material
+		// on this shared pipeline draws in a session, if that first draw
+		// happens to be one of the 2-3-texture ones. Their compiled shader
+		// variants don't declare/sample a 4th texture register at all, so
+		// what's actually bound here is irrelevant to them - fall back to
+		// a safe, always-valid default rather than dereferencing null.
+		idImage* flowMapImage = GetImageAt( 3 );
+		if( flowMapImage == NULL )
+		{
+			flowMapImage = globalImages->blackImage;
+		}
+
 		if( desc[0].bindings.empty() )
 		{
 			desc[0].bindings =
@@ -1462,7 +1490,8 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 				uniformsBindingSetItem,
 				nvrhi::BindingSetItem::Texture_SRV( 0, ( nvrhi::ITexture* )GetImageAt( 0 )->GetTextureID() ),
 				nvrhi::BindingSetItem::Texture_SRV( 1, ( nvrhi::ITexture* )GetImageAt( 1 )->GetTextureID() ),
-				nvrhi::BindingSetItem::Texture_SRV( 2, ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID() )
+				nvrhi::BindingSetItem::Texture_SRV( 2, ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID() ),
+				nvrhi::BindingSetItem::Texture_SRV( 3, ( nvrhi::ITexture* )flowMapImage->GetTextureID() )
 			};
 		}
 		else
@@ -1471,7 +1500,9 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			desc[0].bindings[1].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 0 )->GetTextureID();
 			desc[0].bindings[2].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 1 )->GetTextureID();
 			desc[0].bindings[3].resourceHandle = ( nvrhi::ITexture* )GetImageAt( 2 )->GetTextureID();
+			desc[0].bindings[4].resourceHandle = ( nvrhi::ITexture* )flowMapImage->GetTextureID();
 		}
+		// RB end
 
 		if( R_UsePixelatedLook() )
 		{
@@ -1479,12 +1510,24 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			{
 				desc[1].bindings =
 				{
-					nvrhi::BindingSetItem::Sampler( 0, commonPasses.m_PointClampSampler )
+					nvrhi::BindingSetItem::Sampler( 0, commonPasses.m_PointClampSampler ),
+					// KJ: second sampler slot - clamp (slot 0) is right for
+					// _currentRender (a screen-space capture must never
+					// wrap), but the material's own tiled textures
+					// (colormap/normalmap/flowmap on waterFlow.ps.hlsl, and
+					// any other 4-texture custom-material shader on this
+					// pipeline) need actual repeat addressing to tile
+					// across a UV range that commonly extends well past
+					// [0,1] on a large surface. Without this, anything
+					// outside the texture's exact [0,1] UV smears the edge
+					// pixel instead of repeating.
+					nvrhi::BindingSetItem::Sampler( 1, commonPasses.m_PointWrapSampler )
 				};
 			}
 			else
 			{
 				desc[1].bindings[0].resourceHandle = commonPasses.m_PointClampSampler;
+				desc[1].bindings[1].resourceHandle = commonPasses.m_PointWrapSampler;
 			}
 		}
 		else
@@ -1493,12 +1536,16 @@ void idRenderBackend::GetCurrentBindingLayout( int type )
 			{
 				desc[1].bindings =
 				{
-					nvrhi::BindingSetItem::Sampler( 0, commonPasses.m_LinearClampSampler )
+					nvrhi::BindingSetItem::Sampler( 0, commonPasses.m_LinearClampSampler ),
+					// KJ: see comment above (pixelated-look branch) - same
+					// reasoning, linear instead of point filtering
+					nvrhi::BindingSetItem::Sampler( 1, commonPasses.m_LinearWrapSampler )
 				};
 			}
 			else
 			{
 				desc[1].bindings[0].resourceHandle = commonPasses.m_LinearClampSampler;
+				desc[1].bindings[1].resourceHandle = commonPasses.m_LinearWrapSampler;
 			}
 		}
 	}

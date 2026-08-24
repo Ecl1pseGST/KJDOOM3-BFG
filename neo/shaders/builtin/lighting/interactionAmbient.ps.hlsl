@@ -35,6 +35,7 @@ If you have questions concerning this license or the applicable additional terms
 Texture2D				t_Normal			: register( t0 VK_DESCRIPTOR_SET( 1 ) );
 Texture2D				t_Specular			: register( t1 VK_DESCRIPTOR_SET( 1 ) );
 Texture2D				t_BaseColor			: register( t2 VK_DESCRIPTOR_SET( 1 ) );
+Texture2D				t_AO				: register( t12 VK_DESCRIPTOR_SET( 1 ) );	// RB: ambient occlusion - t12: t11 collides with the skinned-mesh joint StructuredBuffer_SRV in RenderProgs.cpp (same t-register namespace); VK_DESCRIPTOR_SET is a no-op for non-SPIRV builds so all t-registers share one flat namespace there - defaults to a neutral white texture when the material has no aomap stage
 
 Texture2D				t_LightFalloff		: register( t3 VK_DESCRIPTOR_SET( 2 ) );
 Texture2D				t_LightProjection	: register( t4 VK_DESCRIPTOR_SET( 2 ) );
@@ -119,5 +120,11 @@ void main( PS_IN fragment, out PS_OUT result )
 	float3 lightColor = sRGBToLinearRGB( lightProj.xyz * lightFalloff.xyz );
 
 	result.color.xyz = ( diffuseColor + specularColor ) * lightColor * fragment.color.xyz;
+
+	// RB: ambient occlusion
+	float ao = t_AO.Sample( s_Material, baseUV ).r;
+	result.color.xyz *= ao;
+	// RB end
+
 	result.color.w = 1.0;
 }

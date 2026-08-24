@@ -5,27 +5,21 @@ RB: BO3-style flowmap water fragment shader.
 
 Technique: the flowmap (RG channels, remapped from [0,1] storage to a
 [-1,1] direction vector) drives two time-offset UV distortions of the
-normal map. Sampling at two phases 0.5 apart and cross-fading between them
-hides the seam that would otherwise appear every time a single continuously
-scrolling UV wraps back around - this is the standard "flow map" trick
-(see Valve's 2010 GDC water talk, or any modern flowing-water shader).
+color and normal maps. Sampling at two phases 0.5 apart and cross-fading
+between them hides the seam that would otherwise appear every time a
+single continuously scrolling UV wraps back around - this is the standard
+"flow map" trick (see Valve's 2010 GDC water talk, or any modern flowing-
+water shader).
 
 Reflection/refraction uses the same _currentRender screen-space distortion
 technique as heathaze.ps.hlsl/glass materials elsewhere in this codebase,
 perturbed by the flowed normal map and blended with a simple Fresnel term.
 
-Texture budget note: the custom-material shader binding layout
-(BINDING_LAYOUT_POST_PROCESS_INGAME, see RenderProgs.cpp) only provisions 3
-texture slots, so unlike the standard PBR interaction shaders this does NOT
-sample a full per-pixel specular color texture - water's specular response
-is realistically a near-constant pale tint anyway, not something that varies
-meaningfully per-pixel the way a general material's F0 might, so it's a
-material-level color (rpUser0.yzw) instead of a texture. Gloss is packed
-into the normal map's alpha channel (same "normal+gloss" combined convention
-docs/PBR_MATERIALS.md describes for the makeMaterials importer), rather than
-needing its own texture slot too. Water is a single self-contained shader
-like glass/heatHaze here, not lit through the full per-light dynamic
-lighting pipeline like opaque geometry.
+KJ: matches the BO3 water shader's texture set exactly - colormap,
+normalmap, flowmap. Gloss isn't a texture channel here; BO3's water gloss
+barely varies per-material, so it's a per-material constant instead
+(vertexParm 1.w) rather than needing its own texture or a spare channel
+packed into another map.
 
 ===========================================================================
 */
@@ -35,10 +29,12 @@ lighting pipeline like opaque geometry.
 
 // *INDENT-OFF*
 Texture2D t_CurrentRender		: register( t0 VK_DESCRIPTOR_SET( 0 ) );
-Texture2D t_NormalMap			: register( t1 VK_DESCRIPTOR_SET( 0 ) );	// RGB = normal, A = gloss
-Texture2D t_FlowMap			: register( t2 VK_DESCRIPTOR_SET( 0 ) );	// RG = flow direction
+Texture2D t_ColorMap			: register( t1 VK_DESCRIPTOR_SET( 0 ) );	// RGB = color/tint
+Texture2D t_NormalMap			: register( t2 VK_DESCRIPTOR_SET( 0 ) );	// RGB = normal (plain, no packed gloss)
+Texture2D t_FlowMap			: register( t3 VK_DESCRIPTOR_SET( 0 ) );	// RG = flow direction
 
-SamplerState LinearSampler		: register( s0 VK_DESCRIPTOR_SET( 1 ) );
+SamplerState LinearClampSampler	: register( s0 VK_DESCRIPTOR_SET( 1 ) );	// _currentRender only - a screen-space capture must never wrap
+SamplerState LinearWrapSampler		: register( s1 VK_DESCRIPTOR_SET( 1 ) );	// colormap/normalmap/flowmap - needs to tile past [0,1]
 
 struct PS_IN {
 	float4 position		: SV_Position;
@@ -61,18 +57,21 @@ void main( PS_IN fragment, out PS_OUT result )
 	float2 baseUV = fragment.texcoord0.xy;
 	float time = fragment.texcoord0.z;
 
-	// rpUser0.yzw = specular tint color (water's F0 - a near-constant pale
-	// color rather than a per-pixel texture, see file header)
-	float3 specColor = pc.rpUser0.yzw;
+	// rpUser0.yzw = overall tint color, multiplied with the colormap - lets
+	// a mapper push the same colormap toward green/murky or blue/clear
+	// without repainting the texture
+	float3 tintColor = pc.rpUser0.yzw;
 
 	// rpUser1.y = flow speed/strength, rpUser1.z = texture tiling scale for
-	// the normal/flowmap samples
+	// the color/normal/flowmap samples, rpUser1.w = gloss (fixed per-
+	// material constant, not textured - see file header)
 	float flowStrength = pc.rpUser1.y;
 	float tiling = max( pc.rpUser1.z, 0.0001 );
+	float gloss = saturate( pc.rpUser1.w );
 
 	// flowmap sample is NOT phase-distorted itself - it's the thing driving
 	// the distortion of everything else, so it stays on the base UV
-	float2 flowSample = t_FlowMap.Sample( LinearSampler, baseUV ).rg;
+	float2 flowSample = t_FlowMap.Sample( LinearWrapSampler, baseUV ).rg;
 	float2 flowDir = ( flowSample * 2.0 ) - 1.0;
 
 	// two time phases, offset by half a cycle, each wrapping with frac() so
@@ -88,13 +87,19 @@ void main( PS_IN fragment, out PS_OUT result )
 	// which is exactly when that phase's sample is about to pop anyway
 	float blendWeight = abs( ( phase1 * 2.0 ) - 1.0 );
 
-	// sample normal+gloss map at both phases and blend
-	float4 normalGloss1 = t_NormalMap.Sample( LinearSampler, uv1 );
-	float4 normalGloss2 = t_NormalMap.Sample( LinearSampler, uv2 );
-	float4 normalGloss = lerp( normalGloss1, normalGloss2, blendWeight );
+	// sample color map at both phases and blend - same flow distortion as
+	// the normal map, so surface color/foam detail moves with the current
+	float3 colorMap1 = t_ColorMap.Sample( LinearWrapSampler, uv1 ).rgb;
+	float3 colorMap2 = t_ColorMap.Sample( LinearWrapSampler, uv2 ).rgb;
+	float3 colorMap = lerp( colorMap1, colorMap2, blendWeight ) * tintColor;
 
-	float2 localNormal = ( normalGloss.xy * 2.0 ) - 1.0;
-	float roughness = max( 0.05, 1.0 - normalGloss.a );
+	// sample normal map at both phases and blend
+	float3 normalMap1 = t_NormalMap.Sample( LinearWrapSampler, uv1 ).rgb;
+	float3 normalMap2 = t_NormalMap.Sample( LinearWrapSampler, uv2 ).rgb;
+	float3 normalMap = lerp( normalMap1, normalMap2, blendWeight );
+
+	float2 localNormal = ( normalMap.xy * 2.0 ) - 1.0;
+	float roughness = max( 0.05, 1.0 - gloss );
 
 	// perturb the screen-space lookup by the flowed normal, same technique
 	// as heathaze.ps.hlsl
@@ -102,20 +107,30 @@ void main( PS_IN fragment, out PS_OUT result )
 	screenTexCoord += ( localNormal * fragment.texcoord1.x );
 	screenTexCoord = saturate( screenTexCoord );
 
-	float3 sceneColor = t_CurrentRender.Sample( LinearSampler, screenTexCoord.xy ).rgb;
+	float3 sceneColor = t_CurrentRender.Sample( LinearClampSampler, screenTexCoord.xy ).rgb;
 
 	// simple Schlick-ish Fresnel using the perturbed normal's length as a
 	// cheap stand-in for view angle: water looks more mirror-like at a
 	// glancing view and more see-through looking straight down
 	float NdotV = saturate( 1.0 - length( localNormal ) );
-	float fresnelBase = saturate( ( specColor.r + specColor.g + specColor.b ) / 3.0 );
+	float fresnelBase = saturate( ( colorMap.r + colorMap.g + colorMap.b ) / 3.0 );
 	float fresnel = fresnelBase + ( 1.0 - fresnelBase ) * pow( 1.0 - NdotV, 5.0 );
 
-	// tint the refracted scene faintly toward the specular color (murky/
-	// tinted water rather than perfectly clear glass) and blend toward a
-	// brighter reflective response at grazing angles
-	float3 refractionColor = sceneColor * lerp( float3( 1.0, 1.0, 1.0 ), specColor + 0.5, 0.15 );
-	float3 reflectionColor = sceneColor + ( specColor * ( 1.0 - roughness ) );
+	// tint the refracted scene toward the color map (murky/tinted water
+	// rather than perfectly clear glass) and blend toward a brighter
+	// reflective response at grazing angles
+	// tint the refracted scene toward the color map - a multiplicative
+	// tint (like looking through colored glass), so it can only darken or
+	// color-shift the scene, never brighten past it
+	float3 refractionColor = sceneColor * saturate( colorMap * 1.5 );
+
+	// KJ: reflection blends toward the color map rather than adding it on
+	// top of scene brightness - the previous additive version
+	// (sceneColor + colorMap * (1-roughness)) stacked up to 80% of the
+	// colormap's own brightness directly on top of an already-lit scene,
+	// which blew out fast on any colormap with real saturation. This stays
+	// bounded between sceneColor and colorMap regardless of gloss.
+	float3 reflectionColor = lerp( sceneColor, colorMap, 0.4 * ( 1.0 - roughness ) );
 
 	float3 finalColor = lerp( refractionColor, reflectionColor, fresnel );
 

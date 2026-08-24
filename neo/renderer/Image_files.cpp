@@ -1026,16 +1026,22 @@ void R_LoadImage( const char* cname, byte** pic, int* width, int* height, ID_TIM
 
 	// RB begin
 
-	// PBR HACK - look for the same file name that provides a _rmao[d] suffix and prefer it
-	// if it is available, otherwise
+	// PBR HACK - look for the same file name that provides a _sgmap (or,
+	// for backwards compatibility, a legacy _rmao[d]) suffix and prefer it
+	// if it is available, otherwise fall back to the plain specular map
 	bool pbrImageLookup = false;
+	idStrList pbrSuffixCandidates = { "_sgmap", "_rmao" };
+	int pbrSuffixIndex = 0;
+	idStr pbrStrippedName;
 	if( usage && *usage == TD_SPECULAR )
 	{
 		name.StripFileExtension();
 
 		if( name.StripTrailingOnce( "_s" ) )
 		{
-			name += "_rmao";
+			pbrStrippedName = name;
+
+			name += pbrSuffixCandidates[ pbrSuffixIndex ];
 
 			ext = "png";
 			name.DefaultFileExtension( ".png" );
@@ -1093,6 +1099,21 @@ retry:
 		{
 			if( ( pic && *pic == NULL ) || ( !pic && timestamp && *timestamp == FILE_NOT_FOUND_TIMESTAMP ) )
 			{
+				pbrSuffixIndex++;
+
+				if( pbrSuffixIndex < pbrSuffixCandidates.Num() )
+				{
+					// try the next candidate suffix (e.g. fall back from
+					// the canonical _sgmap to the legacy _rmao) before
+					// giving up on the PBR lookup entirely
+					name = pbrStrippedName;
+					name += pbrSuffixCandidates[ pbrSuffixIndex ];
+					ext = "png";
+					name.DefaultFileExtension( ".png" );
+
+					goto retry;
+				}
+
 				name = origName;
 				name.ExtractFileExtension( ext );
 

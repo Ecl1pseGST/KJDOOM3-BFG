@@ -190,6 +190,7 @@ typedef enum
 	SL_DIFFUSE,
 	SL_SPECULAR,
 	SL_COVERAGE,
+	SL_AMBIENT_OCCLUSION,			// RB: appended at the end - keep BUMP/DIFFUSE/SPECULAR order above intact
 } stageLighting_t;
 
 // cross-blended terrain textures need to modulate the color by
@@ -522,6 +523,14 @@ public:
 	{
 		return fastPathSpecularImage;
 	};
+	// RB: fast path AO image - unlike bump/diffuse/specular this one is
+	// allowed to be NULL even when the others are set (most materials
+	// won't have a dedicated AO map, and that's fine)
+	idImage* 			GetFastPathAOImage() const
+	{
+		return fastPathAOImage;
+	};
+	// RB end
 
 	// get a specific stage
 	const shaderStage_t* GetStage( const int index ) const
@@ -533,6 +542,9 @@ public:
 	// get the first bump map stage, or NULL if not present.
 	// used for bumpy-specular
 	const shaderStage_t* GetBumpStage() const;
+	// RB: standalone ambient occlusion stage, if the material has one
+	const shaderStage_t* GetAOStage() const;
+	// RB end
 
 	// returns true if the material will draw anything at all.  Triggers, portals,
 	// etc, will not have anything to draw.  A not drawn surface can still castShadow,
@@ -998,6 +1010,7 @@ private:
 	idImage* 			fastPathBumpImage;	// if any of these are set, they all will be
 	idImage* 			fastPathDiffuseImage;
 	idImage* 			fastPathSpecularImage;
+	idImage* 			fastPathAOImage;	// RB: exception - allowed to stay NULL even on the fast path
 
 	int					entityGui;			// draw a gui with the idUserInterface from the renderEntity_t
 	// non zero will draw gui, gui2, or gui3 from renderEnitty_t

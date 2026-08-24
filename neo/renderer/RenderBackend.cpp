@@ -1063,6 +1063,8 @@ const int INTERACTION_TEXUNIT_SPECULAR_CUBE1 = 8;
 const int INTERACTION_TEXUNIT_SPECULAR_CUBE2 = 9;
 const int INTERACTION_TEXUNIT_SPECULAR_CUBE3 = 10;
 
+const int INTERACTION_TEXUNIT_AO			= 11;	// RB: ambient occlusion - bound at register t3 of the material binding set
+
 /*
 ==================
 idRenderBackend::SetupInteractionStage
@@ -1158,6 +1160,13 @@ void idRenderBackend::DrawSingleInteraction( drawInteraction_t* din, bool useFas
 		{
 			din->bumpImage = globalImages->flatNormalMap;
 		}
+		// RB: default to a neutral (no occlusion) white texture when the
+		// material doesn't have a dedicated AO map
+		if( din->aoImage == NULL )
+		{
+			din->aoImage = globalImages->whiteImage;
+		}
+		// RB end
 
 		// if we wouldn't draw anything, don't call the Draw function
 		const bool diffuseIsBlack = ( din->diffuseImage == globalImages->blackImage )
@@ -1628,6 +1637,12 @@ void idRenderBackend::DrawSingleInteraction( drawInteraction_t* din, bool useFas
 	GL_SelectTexture( INTERACTION_TEXUNIT_BASECOLOR );
 	din->diffuseImage->Bind();
 
+	// RB: texture 11 is the per-surface ambient occlusion map (falls back
+	// to a neutral white texture when the material doesn't have one)
+	GL_SelectTexture( INTERACTION_TEXUNIT_AO );
+	din->aoImage->Bind();
+	// RB end
+
 	DrawElementsWithCounters( din->surf );
 }
 
@@ -2059,6 +2074,7 @@ void idRenderBackend::RenderInteractions( const drawSurf_t* surfList, const view
 				inter.bumpImage = surfaceShader->GetFastPathBumpImage();
 				inter.specularImage = surfaceShader->GetFastPathSpecularImage();
 				inter.diffuseImage = surfaceShader->GetFastPathDiffuseImage();
+				inter.aoImage = surfaceShader->GetFastPathAOImage();	// RB
 
 				DrawSingleInteraction( &inter, true, false, true );
 
@@ -2071,6 +2087,7 @@ void idRenderBackend::RenderInteractions( const drawSurf_t* surfList, const view
 			inter.bumpImage = NULL;
 			inter.specularImage = NULL;
 			inter.diffuseImage = NULL;
+			inter.aoImage = NULL;	// RB
 			inter.diffuseColor[0] = inter.diffuseColor[1] = inter.diffuseColor[2] = inter.diffuseColor[3] = 0;
 			inter.specularColor[0] = inter.specularColor[1] = inter.specularColor[2] = inter.specularColor[3] = 0;
 
@@ -2152,6 +2169,20 @@ void idRenderBackend::RenderInteractions( const drawSurf_t* surfList, const view
 											   inter.specularMatrix, inter.specularColor.ToFloatPtr() );
 						break;
 					}
+					// RB: ambient occlusion doesn't get its own draw pass -
+					// it's a modifier that rides along with whichever
+					// bump/diffuse/specular pass is active, so just latch
+					// the image without triggering a flush
+					case SL_AMBIENT_OCCLUSION:
+					{
+						if( !surfaceRegs[ surfaceStage->conditionRegister ] )
+						{
+							break;
+						}
+						inter.aoImage = surfaceStage->texture.image;
+						break;
+					}
+					// RB end
 				}
 			}
 
@@ -2473,6 +2504,7 @@ void idRenderBackend::AmbientPass( const drawSurf_t* const* drawSurfs, int numDr
 			inter.bumpImage = surfaceMaterial->GetFastPathBumpImage();
 			inter.specularImage = surfaceMaterial->GetFastPathSpecularImage();
 			inter.diffuseImage = surfaceMaterial->GetFastPathDiffuseImage();
+			inter.aoImage = surfaceMaterial->GetFastPathAOImage();	// RB
 
 			DrawSingleInteraction( &inter, true, useIBL, false );
 
@@ -2487,6 +2519,7 @@ void idRenderBackend::AmbientPass( const drawSurf_t* const* drawSurfs, int numDr
 		inter.bumpImage = NULL;
 		inter.specularImage = NULL;
 		inter.diffuseImage = NULL;
+		inter.aoImage = NULL;	// RB
 
 		// we may have multiple alpha tested stages
 		// if the only alpha tested stages are condition register omitted,
@@ -2608,6 +2641,21 @@ void idRenderBackend::AmbientPass( const drawSurf_t* const* drawSurfs, int numDr
 										   inter.specularMatrix, inter.specularColor.ToFloatPtr() );
 					break;
 				}
+
+				// RB: ambient occlusion doesn't get its own draw pass - it's
+				// a modifier that rides along with whichever bump/diffuse/
+				// specular pass is active, so just latch the image without
+				// triggering a flush
+				case SL_AMBIENT_OCCLUSION:
+				{
+					if( !surfaceRegs[ surfaceStage->conditionRegister ] )
+					{
+						break;
+					}
+					inter.aoImage = surfaceStage->texture.image;
+					break;
+				}
+				// RB end
 			}
 		}
 

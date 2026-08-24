@@ -37,6 +37,7 @@ If you have questions concerning this license or the applicable additional terms
 Texture2D t_Normal				: register( t0 VK_DESCRIPTOR_SET( 1 ) );
 Texture2D t_Specular			: register( t1 VK_DESCRIPTOR_SET( 1 ) );
 Texture2D t_BaseColor			: register( t2 VK_DESCRIPTOR_SET( 1 ) );
+Texture2D t_AO					: register( t12 VK_DESCRIPTOR_SET( 1 ) );	// RB: ambient occlusion - t12: t11 collides with the skinned-mesh joint StructuredBuffer_SRV in RenderProgs.cpp (same t-register namespace); VK_DESCRIPTOR_SET is a no-op for non-SPIRV builds so all t-registers share one flat namespace there - defaults to a neutral white texture when the material has no aomap stage
 
 Texture2D t_BrdfLut				: register( t3 VK_DESCRIPTOR_SET( 2 ) );
 Texture2D t_Ssao				: register( t4 VK_DESCRIPTOR_SET( 2 ) );
@@ -147,14 +148,14 @@ void main( PS_IN fragment, out PS_OUT result )
 
 #if USE_PBR
 	// RB: CryEngine-style specular/gloss workflow, replacing the old
-	// Unreal-style metallic/roughness interpretation. No per-pixel AO channel
-	// in this workflow - matches how the KENNY_PBR/legacy paths below also
-	// default AO to 1.0.
+	// Unreal-style metallic/roughness interpretation. The material's own
+	// AO map (if any) is sampled below and combined with SSAO, same as
+	// the legacy/KENNY_PBR paths.
 	float3 specularColor;
 	float roughness;
 	SpecularWorkflowPBR( specMap.rgb, specMapSRGB.a, specularColor, roughness );
 
-	float ao = 1.0;
+	float ao = t_AO.Sample( s_Material, baseUV ).r;
 	float3 diffuseColor = diffuseMap;
 
 #if defined( DEBUG_PBR )
@@ -170,7 +171,8 @@ void main( PS_IN fragment, out PS_OUT result )
 
 #else
 
-	float ao = 1.0;
+	// RB: material AO map (if any), combined with SSAO below
+	float ao = t_AO.Sample( s_Material, baseUV ).r;
 
 #if KENNY_PBR
 	float3 diffuseColor = diffuseMap;

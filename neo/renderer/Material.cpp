@@ -125,6 +125,7 @@ void idMaterial::CommonInit()
 	fastPathBumpImage = NULL;
 	fastPathDiffuseImage = NULL;
 	fastPathSpecularImage = NULL;
+	fastPathAOImage = NULL;	// RB
 	deformDecl = NULL;
 
 	decalInfo.stayTime = 10000;
@@ -1119,6 +1120,13 @@ void idMaterial::ParseBlend( idLexer& src, shaderStage_t* stage )
 		stage->lighting = SL_SPECULAR;
 		return;
 	}
+	// RB: standalone ambient occlusion map, sampled live at render time
+	if( !token.Icmp( "aomap" ) || !token.Icmp( "occlusionmap" ) )
+	{
+		stage->lighting = SL_AMBIENT_OCCLUSION;
+		return;
+	}
+	// RB end
 
 	srcBlend = NameToSrcBlendMode( token );
 
@@ -2280,7 +2288,17 @@ void idMaterial::ParseStage( idLexer& src, const textureRepeat_t trpDefault )
 				td = TD_DIFFUSE;
 				break;
 			case SL_SPECULAR:
-				if( idStr::FindText( imageName, "_rmaod", false ) != -1 )
+				// RB: "_sgmap" is the canonical Specular/Gloss PBR filename
+				// suffix (RGB = specular color/F0, alpha = gloss). "_rmao"/
+				// "_rmaod" are kept recognized purely for backwards
+				// compatibility with content generated before the _sgmap
+				// convention - new content and new makeMaterials output
+				// should always use _sgmap.
+				if( idStr::FindText( imageName, "_sgmap", false ) != -1 )
+				{
+					td = TD_SPECULAR_PBR_RMAO;
+				}
+				else if( idStr::FindText( imageName, "_rmaod", false ) != -1 )
 				{
 					td = TD_SPECULAR_PBR_RMAOD;
 				}
@@ -2293,6 +2311,11 @@ void idMaterial::ParseStage( idLexer& src, const textureRepeat_t trpDefault )
 					td = TD_SPECULAR;
 				}
 				break;
+			// RB: standalone ambient occlusion map, sampled live at render time
+			case SL_AMBIENT_OCCLUSION:
+				td = TD_AMBIENT_OCCLUSION;
+				break;
+			// RB end
 			default:
 				break;
 		}
@@ -2915,6 +2938,18 @@ void idMaterial::ParseMaterial( idLexer& src )
 			newSrc.FreeSource();
 			continue;
 		}
+		// RB: aomap for stage shortcut
+		else if( !token.Icmp( "aomap" ) || !token.Icmp( "occlusionmap" ) )
+		{
+			str = R_ParsePastImageProgram( src );
+			idStr::snPrintf( buffer, sizeof( buffer ), "blend aomap\nmap %s\n}\n", str );
+			newSrc.LoadMemory( buffer, strlen( buffer ), "aomap" );
+			newSrc.SetFlags( LEXFL_NOFATALERRORS | LEXFL_NOSTRINGCONCAT | LEXFL_NOSTRINGESCAPECHARS | LEXFL_ALLOWPATHNAMES );
+			ParseStage( newSrc, trpDefault );
+			newSrc.FreeSource();
+			continue;
+		}
+		// RB end
 		// normalmap for stage shortcut
 		else if( !token.Icmp( "bumpmap" ) || !token.Icmp( "normalmap" ) )
 		{
@@ -3784,6 +3819,24 @@ const shaderStage_t* idMaterial::GetBumpStage() const
 
 /*
 ===================
+idMaterial::GetAOStage
+===================
+*/
+const shaderStage_t* idMaterial::GetAOStage() const
+{
+	for( int i = 0 ; i < numStages ; i++ )
+	{
+		if( stages[i].lighting == SL_AMBIENT_OCCLUSION )
+		{
+			return &stages[i];
+		}
+	}
+	return NULL;
+}
+// RB end
+
+/*
+===================
 idMaterial::ReloadImages
 ===================
 */
@@ -3822,6 +3875,7 @@ void idMaterial::SetFastPathImages()
 	fastPathBumpImage = NULL;
 	fastPathDiffuseImage = NULL;
 	fastPathSpecularImage = NULL;
+	fastPathAOImage = NULL;	// RB
 
 	if( constantRegisters == NULL )
 	{
@@ -3888,6 +3942,20 @@ void idMaterial::SetFastPathImages()
 				}
 				fastPathSpecularImage = surfaceStage->texture.image;
 			}
+			break;
+			// RB: AO is allowed to be present without disqualifying the
+			// fast path - it just doesn't get carried over onto the fast
+			// path images (see the comment below on why)
+			case SL_AMBIENT_OCCLUSION:
+			{
+				if( fastPathAOImage )
+				{
+					goto fail;
+				}
+				fastPathAOImage = surfaceStage->texture.image;
+			}
+			break;
+			// RB end
 		}
 	}
 	// need a bump image, but specular can default
@@ -3902,12 +3970,22 @@ void idMaterial::SetFastPathImages()
 	{
 		fastPathSpecularImage = globalImages->blackImage;
 	}
+	// RB: default to a neutral (no occlusion) white image when the
+	// material doesn't have a dedicated AO map - unlike bump/diffuse this
+	// is expected to be the common case and must not disqualify the fast
+	// path
+	if( fastPathAOImage == NULL )
+	{
+		fastPathAOImage = globalImages->whiteImage;
+	}
+	// RB end
 	return;
 
 fail:
 	fastPathBumpImage = NULL;
 	fastPathDiffuseImage = NULL;
 	fastPathSpecularImage = NULL;
+	fastPathAOImage = NULL;	// RB
 }
 
 // RB begin
@@ -4101,6 +4179,31 @@ CONSOLE_COMMAND_SHIP( makeMaterials, "Make .mtr file from a models or textures f
 			//mtrBuffer += va( "\tqer_editorimage %s\n\n", imageName.c_str() );
 
 			// ===============================
+			// test ambient occlusion map
+			// RB: found up front so its filename is available for the
+			// standalone "aomap" stage emitted below - this is what
+			// actually applies AO at render time now (see docs)
+			idStrList aoNames = { "_ao", "_ambient", "_occlusion" };
+			byte* aoPic = NULL;
+			int aoWidth = 0;
+			int aoHeight = 0;
+			idStr aoFoundName;
+
+			for( auto& name : aoNames )
+			{
+				ID_TIME_T testStamp;
+				idStr testName = baseName + name + resName;
+
+				R_LoadImage( testName, &aoPic, &aoWidth, &aoHeight, &testStamp, true, NULL );
+				if( testStamp != FILE_NOT_FOUND_TIMESTAMP )
+				{
+					aoFoundName = testName;
+					break;
+				}
+			}
+			// RB end
+
+			// ===============================
 			// test opacity / transparency map
 			idStrList alphaNames = { "_opacity", "_alpha" };
 			bool foundAlpha = false;
@@ -4173,6 +4276,15 @@ CONSOLE_COMMAND_SHIP( makeMaterials, "Make .mtr file from a models or textures f
 				mtrBuffer += va( "\tbasecolormap %s\n", imageName.c_str() );
 			}
 
+			// RB: emit a real, live-sampled "aomap" stage when an AO
+			// source texture was found - this is what actually applies
+			// ambient occlusion at render time
+			if( aoPic )
+			{
+				mtrBuffer += va( "\taomap %s\n", aoFoundName.c_str() );
+			}
+			// RB end
+
 			// ===============================
 			// test normal map
 			// RB: also check for a combined "normal+gloss" texture (RGB =
@@ -4184,6 +4296,7 @@ CONSOLE_COMMAND_SHIP( makeMaterials, "Make .mtr file from a models or textures f
 
 			bool foundNormal = false;
 			bool normalHasGloss = false;
+			bool normalNeedsGreenInvert = false;
 			byte* normalGlossPic = NULL;
 			int normalGlossWidth = 0;
 			int normalGlossHeight = 0;
@@ -4197,6 +4310,9 @@ CONSOLE_COMMAND_SHIP( makeMaterials, "Make .mtr file from a models or textures f
 
 				if( testStamp != FILE_NOT_FOUND_TIMESTAMP )
 				{
+					// alpha is already spoken for by gloss here, so there's
+					// no spare channel left to also pack AO into - write it
+					// straight through
 					mtrBuffer += va( "\tnormalmap %s\n", testName.c_str() );
 					foundNormal = true;
 					normalHasGloss = true;
@@ -4216,7 +4332,10 @@ CONSOLE_COMMAND_SHIP( makeMaterials, "Make .mtr file from a models or textures f
 
 					if( testStamp != FILE_NOT_FOUND_TIMESTAMP )
 					{
-						if( name.Cmp( "_nor_dx" ) == 0 || name.Cmp( "_normal_directx" ) == 0 || ueMode )
+						normalNeedsGreenInvert = ( name.Cmp( "_nor_dx" ) == 0 || name.Cmp( "_normal_directx" ) == 0 || ueMode );
+						foundNormal = true;
+
+						if( normalNeedsGreenInvert )
 						{
 							mtrBuffer += va( "\tnormalmap invertGreen( %s )\n", testName.c_str() );
 						}
@@ -4228,17 +4347,20 @@ CONSOLE_COMMAND_SHIP( makeMaterials, "Make .mtr file from a models or textures f
 					}
 				}
 			}
+			// RB end
 
 			// ===============================
 			// test roughness map
-			// RB: this block (roughness+metallic+ao -> "rmaomap") predates the
-			// switch to a CryEngine-style specular/gloss workflow as the
-			// default interpretation of the USE_PBR shader path. Its output
-			// is still generated (kept for anyone deliberately working with
-			// metallic-authored source textures) but will render incorrectly
-			// unless the interaction shaders are reverted to interpret this
-			// stage as metallic/roughness again. Prefer the specular+gloss
-			// block further below for new content.
+			// RB: metallic-workflow source textures (roughness + metallic,
+			// glTF/UE convention) get converted into the engine's native
+			// Specular/Gloss "_sgmap" format rather than kept in their own
+			// metallic layout, since the USE_PBR shader path only
+			// understands specular/gloss data. There's no real specular
+			// color to recover from a metallic-workflow source (metalness
+			// alone doesn't tell us F0), so the converted specular channel
+			// is intentionally a flat grey placeholder rather than an
+			// attempt to fake one - gloss is derived by inverting the
+			// roughness map, which does carry real information.
 			// RB end
 			idStrList roughNames = { "_roughness", "_rough", "_rgh" };
 			byte* roughPic = NULL;
@@ -4276,65 +4398,38 @@ CONSOLE_COMMAND_SHIP( makeMaterials, "Make .mtr file from a models or textures f
 				}
 			}
 
-			// ===============================
-			// test ambient occlusion map
-			idStrList aoNames = { "_ao", "_ambient", "_occlusion" };
-			byte* aoPic = NULL;
-			int aoWidth = 0;
-			int aoHeight = 0;
-
-			for( auto& name : aoNames )
-			{
-				ID_TIME_T testStamp;
-				idStr testName = baseName + name + resName;
-
-				R_LoadImage( testName, &aoPic, &aoWidth, &aoHeight, &testStamp, true, NULL );
-				if( testStamp != FILE_NOT_FOUND_TIMESTAMP )
-				{
-					break;
-				}
-			}
+			// (AO map, if any, was already found above and emitted as a
+			// standalone "aomap" stage)
 
 			// expect at least roughness and metallic values or we skip the PBR material creation here
 			if( roughPic && metalPic )
 			{
 				if( roughWidth == metalWidth || roughHeight == metalHeight )
 				{
-					// merge images and save it to disk
+					// RB: convert to the native Specular/Gloss "_sgmap"
+					// layout: flat grey specular color (metalness alone
+					// doesn't give us a real F0 to convert, so a
+					// placeholder is the honest choice here) and gloss
+					// derived by inverting roughness, which is real data
 					int c = roughWidth * roughHeight * 4;
 
 					for( int j = 0 ; j < c ; j += 4 )
 					{
-						// put metallic into green channel
-						roughPic[j + 1] = metalPic[j + 0];
+						byte gloss = 255 - roughPic[j + 0];
 
-						// put middle 0.5 value into alpha channel for the case we want to add displacement later
-						roughPic[j + 3] = 128;
-					}
-
-					if( roughWidth == aoWidth || roughHeight == aoHeight )
-					{
-						for( int i = 0 ; i < c ; i += 4 )
-						{
-							// put AO into blue channel
-							roughPic[i + 2] = aoPic[i + 0];
-						}
-					}
-					else
-					{
-						// reset AO channel to white
-						for( int i = 0 ; i < c ; i += 4 )
-						{
-							roughPic[i + 2] = 255;
-						}
+						roughPic[j + 0] = 128;
+						roughPic[j + 1] = 128;
+						roughPic[j + 2] = 128;
+						roughPic[j + 3] = gloss;
 					}
 
 					// don't destroy the original image and save it as new one
-					idStr mergedName = baseName + "_rmao.png";
+					idStr mergedName = baseName + "_sgmap.png";
 					R_WritePNG( mergedName, static_cast<byte*>( roughPic ), 4, roughWidth, roughHeight, "fs_basepath" );
 
 					mergedName.StripFileExtension();
-					mtrBuffer += va( "\trmaomap %s\n", mergedName.c_str() );
+					mtrBuffer += va( "\tspecularmap %s\n", mergedName.c_str() );
+					// RB end
 				}
 			}
 
@@ -4342,6 +4437,13 @@ CONSOLE_COMMAND_SHIP( makeMaterials, "Make .mtr file from a models or textures f
 			{
 				// ===============================
 				// test UE4 specular map
+				// RB: this is a packed AO(R)/Roughness(G)/Metal(B) texture,
+				// UE4's usual convention. Same conversion as above - flat
+				// grey specular, gloss from inverted roughness. The AO
+				// channel packed in here isn't picked up (loose "_ao"-style
+				// textures are handled separately above as a standalone
+				// "aomap" stage); author a standalone AO map alongside this
+				// one if you need it carried over.
 				idStrList specNames = { "_specular" };
 				byte* specPic = NULL;
 				int specWidth = 0;
@@ -4355,33 +4457,30 @@ CONSOLE_COMMAND_SHIP( makeMaterials, "Make .mtr file from a models or textures f
 					R_LoadImage( testName, &specPic, &specWidth, &specHeight, &testStamp, true, NULL );
 					if( testStamp != FILE_NOT_FOUND_TIMESTAMP )
 					{
-						// swap bytes to RMAO order
 						int c = specWidth * specHeight * 4;
 
 						for( int j = 0 ; j < c ; j += 4 )
 						{
-							byte ao = specPic[j + 0];
 							byte roughness = specPic[j + 1];
-							byte metal = specPic[j + 2];
+							byte gloss = 255 - roughness;
 
-							specPic[j + 0] = roughness;
-							specPic[j + 1] = metal;
-							specPic[j + 2] = ao;
-
-							// put middle 0.5 value into alpha channel for the case we want to add displacement later
-							specPic[j + 3] = 128;
+							specPic[j + 0] = 128;
+							specPic[j + 1] = 128;
+							specPic[j + 2] = 128;
+							specPic[j + 3] = gloss;
 						}
 
-						idStr mergedName = baseName + "_rmao.png";
+						idStr mergedName = baseName + "_sgmap.png";
 						R_WritePNG( mergedName, static_cast<byte*>( specPic ), 4, specWidth, specHeight, "fs_basepath" );
 
 						mergedName.StripFileExtension();
-						mtrBuffer += va( "\trmaomap %s\n", mergedName.c_str() );
+						mtrBuffer += va( "\tspecularmap %s\n", mergedName.c_str() );
 
 						R_StaticFree( specPic );
 						break;
 					}
 				}
+				// RB end
 			}
 
 			if( roughPic )
@@ -4480,11 +4579,11 @@ CONSOLE_COMMAND_SHIP( makeMaterials, "Make .mtr file from a models or textures f
 					}
 				}
 
-				// reuse the existing "_rmao" filename convention that
-				// idMaterial::ParseStage already keys off of (see the
+				// use the "_sgmap" filename convention that
+				// idMaterial::ParseStage keys off of (see the
 				// TD_SPECULAR_PBR_RMAO check above) to select the USE_PBR
 				// shader path over the KENNY_PBR legacy path
-				idStr mergedName = baseName + "_rmao.png";
+				idStr mergedName = baseName + "_sgmap.png";
 				R_WritePNG( mergedName, static_cast<byte*>( specColorPic ), 4, specColorWidth, specColorHeight, "fs_basepath" );
 
 				mergedName.StripFileExtension();
@@ -4493,7 +4592,7 @@ CONSOLE_COMMAND_SHIP( makeMaterials, "Make .mtr file from a models or textures f
 			else if( specColorPic )
 			{
 				// basic/legacy set - no gloss data found, deliberately does
-				// NOT use the "_rmao" suffix so it routes to the Kenny PBR
+				// NOT use the "_sgmap" suffix so it routes to the Kenny PBR
 				// converter (TD_SPECULAR) instead of the new workflow
 				idStr plainName = baseName + "_specmap.png";
 				R_WritePNG( plainName, static_cast<byte*>( specColorPic ), 4, specColorWidth, specColorHeight, "fs_basepath" );

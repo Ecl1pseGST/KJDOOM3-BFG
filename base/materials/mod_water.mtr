@@ -1,4 +1,4 @@
-// RB: BO3-style flowmap water material template.
+// KJ: BO3-style flowmap water material template.
 //
 // This ties together two separate systems built this project:
 //   - gameplay water physics (the "water" surfaceparm below gives this brush
@@ -11,22 +11,28 @@
 // EXAMPLE, not a single shared material every water brush should reference
 // verbatim.
 //
+// Matches BO3's water shader texture set: colormap, normalmap, flowmap.
+// Gloss isn't textured - BO3 water barely varies its gloss per-material, so
+// it's a per-material constant (vertexParm 1.w) instead.
+//
 // Required source textures:
+//   - a colormap (RGB = water color/tint - the same role BO3's colormap
+//     plays: base water color, murkiness, foam/detail variation). Also
+//     flows with the current, same as the normal map.
+//   - a plain normal map (RGB = tangent-space normal, no packed alpha
+//     channel needed - any of the standard normal map suffixes work, see
+//     docs/PBR_MATERIALS.md).
 //   - a flowmap (RG = flow direction, remapped from [0,1] storage to
 //     [-1,1] in the shader). Paint one in an editor like Flow Map Painter,
 //     or export from your DCC tool. A flat (128,128,0) gray texture reads
 //     as "no flow" - a reasonable placeholder to start from.
-//   - a normal+gloss map (RGB = tangent-space normal, A = gloss) - the same
-//     combined convention the PBR specular workflow uses, see
-//     docs/PBR_MATERIALS.md. The makeMaterials console command can build one
-//     of these automatically from separate _normal + _gloss source files.
 //
 // Tunable per-material parameters:
-//   vertexParm 0   time, specColor.r, specColor.g, specColor.b
-//   vertexParm 1   screenDistortMagnitude, flowStrength, tiling
+//   vertexParm 0   time, tint color rgb (multiplies the colormap - yzw)
+//   vertexParm 1   screenDistortMagnitude, flowStrength, tiling, gloss
 textures/liquid/mod_flowwater_example
 {
-	qer_editorimage textures/liquid/mod_flowwater_example_normalgloss.tga
+	qer_editorimage textures/liquid/mod_flowwater_example_color.tga
 
 	noshadows
 	water
@@ -38,16 +44,20 @@ textures/liquid/mod_flowwater_example
 		vertexProgram   waterFlow.vs.hlsl
 		fragmentProgram waterFlow.ps.hlsl
 
-		// time (x), specular tint color rgb (yzw) - a pale blue-white works
-		// well for most fresh water; push toward green/yellow for slime-
-		// tinted water, or a murkier gray for muddy/dirty water
-		vertexParm 0   time, 0.35, 0.45, 0.5
+		// time (x), tint color rgb (yzw) - multiplies the colormap; leave at
+		// white (1,1,1) to use the colormap's own colors unmodified, or push
+		// toward green/yellow for slime-tinted water, blue for clear/deep
+		// water, gray/brown for muddy water
+		vertexParm 0   time, 1.0, 1.0, 1.0
 
-		// screen distortion magnitude (x), flow strength (y), UV tiling (z)
-		vertexParm 1   0.5, 0.06, 2.0
+		// screen distortion magnitude (x), flow strength (y), UV tiling (z),
+		// gloss (w) - fixed per-material, 0 = fully rough/matte, 1 = mirror-
+		// like; most water reads well somewhere around 0.7-0.85
+		vertexParm 1   0.5, 0.06, 2.0, 0.8
 
 		fragmentMap 0  _currentRender
-		fragmentMap 1  textures/liquid/mod_flowwater_example_normalgloss.tga
-		fragmentMap 2  textures/liquid/mod_flowwater_example_flowmap.tga
+		fragmentMap 1  textures/liquid/mod_flowwater_example_color.tga
+		fragmentMap 2  textures/liquid/mod_flowwater_example_normal.tga
+		fragmentMap 3  textures/liquid/mod_flowwater_example_flowmap.tga
 	}
 }
