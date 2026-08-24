@@ -1,0 +1,100 @@
+diff --git a/base/materials/mod_water.mtr b/base/materials/mod_water.mtr
+index dd416ee..992c7bf 100644
+--- a/base/materials/mod_water.mtr
++++ b/base/materials/mod_water.mtr
+@@ -30,6 +30,17 @@
+ // Tunable per-material parameters:
+ //   vertexParm 0   time, tint color rgb (multiplies the colormap - yzw)
+ //   vertexParm 1   screenDistortMagnitude, flowStrength, tiling, gloss
++//   vertexParm 2   tintStrength (x) - how much the colormap tints the
++//                  refracted scene, 0 = fully clear, 1 = full strength.
++//                  How high this should be depends entirely on how dark/
++//                  opaque your source colormap texture already is - a
++//                  faint, barely-there colormap (texture packs that offer
++//                  several intensity variants, like a set numbered
++//                  5/10/20/30/40, often use the lowest number for this)
++//                  wants a LOW tintStrength here, or the shader can still
++//                  amplify it into a much stronger tint than the source
++//                  texture implies. Start low (0.1-0.2) and raise it if
++//                  the water reads as too weak/invisible.
+ textures/liquid/mod_flowwater_example
+ {
+ 	qer_editorimage textures/liquid/mod_flowwater_example_color.tga
+@@ -55,6 +66,11 @@ textures/liquid/mod_flowwater_example
+ 		// like; most water reads well somewhere around 0.7-0.85
+ 		vertexParm 1   0.5, 0.06, 2.0, 0.8
+ 
++		// tintStrength (x) - see the note above the material name for how
++		// to pick this; 0.15 here as a starting point for a light/faint
++		// colormap texture
++		vertexParm 2   0.15, 0, 0, 0
++
+ 		fragmentMap 0  _currentRender
+ 		fragmentMap 1  textures/liquid/mod_flowwater_example_color.tga
+ 		fragmentMap 2  textures/liquid/mod_flowwater_example_normal.tga
+diff --git a/neo/shaders/waterFlow.ps.hlsl b/neo/shaders/waterFlow.ps.hlsl
+index 9d4c476..2a68ff9 100644
+--- a/neo/shaders/waterFlow.ps.hlsl
++++ b/neo/shaders/waterFlow.ps.hlsl
+@@ -1,7 +1,7 @@
+ /*
+ ===========================================================================
+ 
+-RB: BO3-style flowmap water fragment shader.
++KJ: BO3-style flowmap water fragment shader.
+ 
+ Technique: the flowmap (RG channels, remapped from [0,1] storage to a
+ [-1,1] direction vector) drives two time-offset UV distortions of the
+@@ -19,7 +19,11 @@ KJ: matches the BO3 water shader's texture set exactly - colormap,
+ normalmap, flowmap. Gloss isn't a texture channel here; BO3's water gloss
+ barely varies per-material, so it's a per-material constant instead
+ (vertexParm 1.w) rather than needing its own texture or a spare channel
+-packed into another map.
++packed into another map. Same reasoning for tint strength/opacity
++(vertexParm 2.x) - source colormap textures commonly ship as a family of
++intensity variants (a light, barely-there one alongside progressively
++darker/more opaque ones), so how strongly the shader should apply that
++tint on top depends on which variant is in use, not a fixed constant.
+ 
+ ===========================================================================
+ */
+@@ -69,6 +73,13 @@ void main( PS_IN fragment, out PS_OUT result )
+ 	float tiling = max( pc.rpUser1.z, 0.0001 );
+ 	float gloss = saturate( pc.rpUser1.w );
+ 
++	// KJ: rpUser2.x = tint strength (opacity) - how much the color map
++	// tints the refracted scene, 0 = fully clear/untinted, 1 = full
++	// strength multiplicative tint. BO3's own water reference material
++	// this shader is modeled on uses a light 5% tint, which reads as
++	// "water" without turning translucent glass into a solid color wash.
++	float tintStrength = saturate( pc.rpUser2.x );
++
+ 	// flowmap sample is NOT phase-distorted itself - it's the thing driving
+ 	// the distortion of everything else, so it stays on the base UV
+ 	float2 flowSample = t_FlowMap.Sample( LinearWrapSampler, baseUV ).rg;
+@@ -122,7 +133,11 @@ void main( PS_IN fragment, out PS_OUT result )
+ 	// tint the refracted scene toward the color map - a multiplicative
+ 	// tint (like looking through colored glass), so it can only darken or
+ 	// color-shift the scene, never brighten past it
+-	float3 refractionColor = sceneColor * saturate( colorMap * 1.5 );
++	// KJ: refraction only ever blends toward the tinted result by
++	// tintStrength - at the default 5% this reads as barely-tinted glass
++	// (mostly the clear scene showing through), not a wash of solid color
++	float3 tintedRefraction = sceneColor * saturate( colorMap * 1.5 );
++	float3 refractionColor = lerp( sceneColor, tintedRefraction, tintStrength );
+ 
+ 	// KJ: reflection blends toward the color map rather than adding it on
+ 	// top of scene brightness - the previous additive version
+diff --git a/neo/shaders/waterFlow.vs.hlsl b/neo/shaders/waterFlow.vs.hlsl
+index 6ea9dec..5a6a78c 100644
+--- a/neo/shaders/waterFlow.vs.hlsl
++++ b/neo/shaders/waterFlow.vs.hlsl
+@@ -1,7 +1,7 @@
+ /*
+ ===========================================================================
+ 
+-RB: BO3-style flowmap water vertex shader.
++KJ: BO3-style flowmap water vertex shader.
+ 
+ Simple pass-through in the spirit of heathaze.vs.hlsl - the actual flowmap
+ distortion work happens in the fragment shader (waterFlow.ps.hlsl), since it

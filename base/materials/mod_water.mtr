@@ -30,6 +30,17 @@
 // Tunable per-material parameters:
 //   vertexParm 0   time, tint color rgb (multiplies the colormap - yzw)
 //   vertexParm 1   screenDistortMagnitude, flowStrength, tiling, gloss
+//   vertexParm 2   tintStrength (x) - how much the colormap tints the
+//                  refracted scene, 0 = fully clear, 1 = full strength.
+//                  How high this should be depends entirely on how dark/
+//                  opaque your source colormap texture already is - a
+//                  faint, barely-there colormap (texture packs that offer
+//                  several intensity variants, like a set numbered
+//                  5/10/20/30/40, often use the lowest number for this)
+//                  wants a LOW tintStrength here, or the shader can still
+//                  amplify it into a much stronger tint than the source
+//                  texture implies. Start low (0.1-0.2) and raise it if
+//                  the water reads as too weak/invisible.
 textures/liquid/mod_flowwater_example
 {
 	qer_editorimage textures/liquid/mod_flowwater_example_color.tga
@@ -54,6 +65,11 @@ textures/liquid/mod_flowwater_example
 		// gloss (w) - fixed per-material, 0 = fully rough/matte, 1 = mirror-
 		// like; most water reads well somewhere around 0.7-0.85
 		vertexParm 1   0.5, 0.06, 2.0, 0.8
+
+		// tintStrength (x) - see the note above the material name for how
+		// to pick this; 0.15 here as a starting point for a light/faint
+		// colormap texture
+		vertexParm 2   0.15, 0, 0, 0
 
 		fragmentMap 0  _currentRender
 		fragmentMap 1  textures/liquid/mod_flowwater_example_color.tga

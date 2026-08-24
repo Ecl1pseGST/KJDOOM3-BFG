@@ -1,7 +1,7 @@
 /*
 ===========================================================================
 
-RB: BO3-style flowmap water fragment shader.
+KJ: BO3-style flowmap water fragment shader.
 
 Technique: the flowmap (RG channels, remapped from [0,1] storage to a
 [-1,1] direction vector) drives two time-offset UV distortions of the
@@ -19,7 +19,11 @@ KJ: matches the BO3 water shader's texture set exactly - colormap,
 normalmap, flowmap. Gloss isn't a texture channel here; BO3's water gloss
 barely varies per-material, so it's a per-material constant instead
 (vertexParm 1.w) rather than needing its own texture or a spare channel
-packed into another map.
+packed into another map. Same reasoning for tint strength/opacity
+(vertexParm 2.x) - source colormap textures commonly ship as a family of
+intensity variants (a light, barely-there one alongside progressively
+darker/more opaque ones), so how strongly the shader should apply that
+tint on top depends on which variant is in use, not a fixed constant.
 
 ===========================================================================
 */
@@ -68,6 +72,13 @@ void main( PS_IN fragment, out PS_OUT result )
 	float flowStrength = pc.rpUser1.y;
 	float tiling = max( pc.rpUser1.z, 0.0001 );
 	float gloss = saturate( pc.rpUser1.w );
+
+	// KJ: rpUser2.x = tint strength (opacity) - how much the color map
+	// tints the refracted scene, 0 = fully clear/untinted, 1 = full
+	// strength multiplicative tint. BO3's own water reference material
+	// this shader is modeled on uses a light 5% tint, which reads as
+	// "water" without turning translucent glass into a solid color wash.
+	float tintStrength = saturate( pc.rpUser2.x );
 
 	// flowmap sample is NOT phase-distorted itself - it's the thing driving
 	// the distortion of everything else, so it stays on the base UV
@@ -122,7 +133,11 @@ void main( PS_IN fragment, out PS_OUT result )
 	// tint the refracted scene toward the color map - a multiplicative
 	// tint (like looking through colored glass), so it can only darken or
 	// color-shift the scene, never brighten past it
-	float3 refractionColor = sceneColor * saturate( colorMap * 1.5 );
+	// KJ: refraction only ever blends toward the tinted result by
+	// tintStrength - at the default 5% this reads as barely-tinted glass
+	// (mostly the clear scene showing through), not a wash of solid color
+	float3 tintedRefraction = sceneColor * saturate( colorMap * 1.5 );
+	float3 refractionColor = lerp( sceneColor, tintedRefraction, tintStrength );
 
 	// KJ: reflection blends toward the color map rather than adding it on
 	// top of scene brightness - the previous additive version

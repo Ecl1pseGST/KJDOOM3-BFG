@@ -1,7 +1,7 @@
 /*
 ===========================================================================
 
-RB: BO3-style flowmap water vertex shader.
+KJ: BO3-style flowmap water vertex shader.
 
 Simple pass-through in the spirit of heathaze.vs.hlsl - the actual flowmap
 distortion work happens in the fragment shader (waterFlow.ps.hlsl), since it
