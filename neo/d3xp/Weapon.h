@@ -129,6 +129,14 @@ public:
 	void					Reload();
 	void					LowerWeapon();
 	void					RaiseWeapon();
+	// KJ: same mechanism as LowerWeapon()/RaiseWeapon() (a smooth position
+	// offset via hide/hideStart/hideEnd, not the Raise()/PutAway()
+	// animation state machine - that one fights with the automatic
+	// re-raise logic in idPlayer::Weapon_Combat()), but with a distinct,
+	// larger offset so sprint-hiding doesn't reuse/corrupt hideDistance,
+	// which is the weapon def's own small "look down at PDA"-style dip
+	void					LowerWeaponForSprint();
+	void					RaiseWeaponForSprint();
 	void					HideWeapon();
 	void					ShowWeapon();
 	void					HideWorldModel();

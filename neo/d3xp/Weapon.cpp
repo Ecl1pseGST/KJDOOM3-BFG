@@ -1866,6 +1866,66 @@ void idWeapon::RaiseWeapon()
 
 /*
 ================
+idWeapon::LowerWeaponForSprint
+================
+*/
+void idWeapon::LowerWeaponForSprint()
+{
+	// KJ: same mechanism as LowerWeapon() above (smooth hide/hideStart/
+	// hideEnd position offset), but a dedicated, larger distance so
+	// sprint-hiding doesn't reuse hideDistance, which belongs to the
+	// weapon def's own small "look down at PDA"-style dip. Deliberately
+	// does NOT touch hideTime (transition duration) - that's set once
+	// from the weapon def at spawn and never modified anywhere else, so
+	// overwriting it here would leave a stale sprint-specific duration
+	// bleeding into the next ordinary LowerWeapon()/RaiseWeapon() call.
+	const float SPRINT_HIDE_DISTANCE = -80.0f;
+
+	if( !hide )
+	{
+		hideStart	= 0.0f;
+		hideEnd		= SPRINT_HIDE_DISTANCE;
+		if( gameLocal.time - hideStartTime < hideTime )
+		{
+			hideStartTime = gameLocal.time - ( hideTime - ( gameLocal.time - hideStartTime ) );
+		}
+		else
+		{
+			hideStartTime = gameLocal.time;
+		}
+		hide = true;
+	}
+}
+
+/*
+================
+idWeapon::RaiseWeaponForSprint
+================
+*/
+void idWeapon::RaiseWeaponForSprint()
+{
+	const float SPRINT_HIDE_DISTANCE = -80.0f;
+
+	Show();
+
+	if( hide )
+	{
+		hideStart	= SPRINT_HIDE_DISTANCE;
+		hideEnd		= 0.0f;
+		if( gameLocal.time - hideStartTime < hideTime )
+		{
+			hideStartTime = gameLocal.time - ( hideTime - ( gameLocal.time - hideStartTime ) );
+		}
+		else
+		{
+			hideStartTime = gameLocal.time;
+		}
+		hide = false;
+	}
+}
+
+/*
+================
 idWeapon::HideWeapon
 ================
 */

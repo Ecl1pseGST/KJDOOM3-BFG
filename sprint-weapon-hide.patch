@@ -1,0 +1,151 @@
+diff --git a/neo/d3xp/Player.cpp b/neo/d3xp/Player.cpp
+index cdd00fb..ea1472b 100644
+--- a/neo/d3xp/Player.cpp
++++ b/neo/d3xp/Player.cpp
+@@ -8100,15 +8100,27 @@ void idPlayer::AdjustSpeed()
+ 		}
+ 	}
+ 
+-	// KJ: lower/raise the weapon on sprint start/stop, reusing the exact
+-	// same raise/lower animations already used for weapon switching - no
+-	// new animation content needed. Placed after the branch above (rather
+-	// than inside it) so this also fires correctly if sprint gets force-
+-	// cancelled by going into spectate/noclip mid-sprint. Step 1 only:
+-	// this just plays the animation and (via the existing IsReady()/
+-	// IsHolstered() state gates already used elsewhere in this file for
+-	// firing/weapon-switching) blocks firing while lowered/raising. It
+-	// does NOT yet touch swimming - a full sprint-while-swimming pass
++	// KJ: hide/show the weapon on sprint start/stop. Uses
++	// LowerWeaponForSprint()/RaiseWeaponForSprint() (see Weapon.cpp/.h) -
++	// a smooth position-offset hide, the same underlying mechanism as the
++	// existing LowerWeapon()/RaiseWeapon() PDA-look dip, just with a much
++	// larger distance and its own constants so it doesn't reuse/corrupt
++	// hideDistance or hideTime.
++	//
++	// Deliberately NOT using the Raise()/PutAway() animation state
++	// machine (WP_RISING/WP_LOWERING/WP_HOLSTERED) here - that's what the
++	// weapon-switch system uses, and idPlayer::Weapon_Combat() has
++	// existing logic that automatically re-raises a holstered weapon the
++	// moment it sees "holstered with nothing to switch to," which fought
++	// against a sprint-triggered PutAway() every single frame. The hide-
++	// offset approach is a completely separate mechanism (position only,
++	// not weapon status), so it doesn't interact with that logic at all.
++	// This is a placeholder until real sprint animations exist - the
++	// weapon just moves off-screen rather than genuinely animating into a
++	// sprint pose. Firing is still blocked purely by the
++	// wasSprintingLastFrame gate in UpdateWeapon(), independent of this.
++	//
++	// Not yet extended to swimming - a full sprint-while-swimming pass
+ 	// (distinct swim-stroke animation, can't fire while swim-sprinting,
+ 	// same as underwater combat otherwise being allowed - BO3-style) is
+ 	// planned as a followup, not implemented here.
+@@ -8116,17 +8128,11 @@ void idPlayer::AdjustSpeed()
+ 	{
+ 		if( isSprinting )
+ 		{
+-			if( weapon.GetEntity()->IsReady() )
+-			{
+-				weapon.GetEntity()->PutAway();
+-			}
++			weapon.GetEntity()->LowerWeaponForSprint();
+ 		}
+ 		else
+ 		{
+-			if( weapon.GetEntity()->IsHolstered() )
+-			{
+-				weapon.GetEntity()->Raise();
+-			}
++			weapon.GetEntity()->RaiseWeaponForSprint();
+ 		}
+ 	}
+ 
+diff --git a/neo/d3xp/Weapon.cpp b/neo/d3xp/Weapon.cpp
+index e729084..8a70828 100644
+--- a/neo/d3xp/Weapon.cpp
++++ b/neo/d3xp/Weapon.cpp
+@@ -1864,6 +1864,66 @@ void idWeapon::RaiseWeapon()
+ 	}
+ }
+ 
++/*
++================
++idWeapon::LowerWeaponForSprint
++================
++*/
++void idWeapon::LowerWeaponForSprint()
++{
++	// KJ: same mechanism as LowerWeapon() above (smooth hide/hideStart/
++	// hideEnd position offset), but a dedicated, larger distance so
++	// sprint-hiding doesn't reuse hideDistance, which belongs to the
++	// weapon def's own small "look down at PDA"-style dip. Deliberately
++	// does NOT touch hideTime (transition duration) - that's set once
++	// from the weapon def at spawn and never modified anywhere else, so
++	// overwriting it here would leave a stale sprint-specific duration
++	// bleeding into the next ordinary LowerWeapon()/RaiseWeapon() call.
++	const float SPRINT_HIDE_DISTANCE = -80.0f;
++
++	if( !hide )
++	{
++		hideStart	= 0.0f;
++		hideEnd		= SPRINT_HIDE_DISTANCE;
++		if( gameLocal.time - hideStartTime < hideTime )
++		{
++			hideStartTime = gameLocal.time - ( hideTime - ( gameLocal.time - hideStartTime ) );
++		}
++		else
++		{
++			hideStartTime = gameLocal.time;
++		}
++		hide = true;
++	}
++}
++
++/*
++================
++idWeapon::RaiseWeaponForSprint
++================
++*/
++void idWeapon::RaiseWeaponForSprint()
++{
++	const float SPRINT_HIDE_DISTANCE = -80.0f;
++
++	Show();
++
++	if( hide )
++	{
++		hideStart	= SPRINT_HIDE_DISTANCE;
++		hideEnd		= 0.0f;
++		if( gameLocal.time - hideStartTime < hideTime )
++		{
++			hideStartTime = gameLocal.time - ( hideTime - ( gameLocal.time - hideStartTime ) );
++		}
++		else
++		{
++			hideStartTime = gameLocal.time;
++		}
++		hide = false;
++	}
++}
++
+ /*
+ ================
+ idWeapon::HideWeapon
+diff --git a/neo/d3xp/Weapon.h b/neo/d3xp/Weapon.h
+index 28e73be..78620df 100644
+--- a/neo/d3xp/Weapon.h
++++ b/neo/d3xp/Weapon.h
+@@ -129,6 +129,14 @@ public:
+ 	void					Reload();
+ 	void					LowerWeapon();
+ 	void					RaiseWeapon();
++	// KJ: same mechanism as LowerWeapon()/RaiseWeapon() (a smooth position
++	// offset via hide/hideStart/hideEnd, not the Raise()/PutAway()
++	// animation state machine - that one fights with the automatic
++	// re-raise logic in idPlayer::Weapon_Combat()), but with a distinct,
++	// larger offset so sprint-hiding doesn't reuse/corrupt hideDistance,
++	// which is the weapon def's own small "look down at PDA"-style dip
++	void					LowerWeaponForSprint();
++	void					RaiseWeaponForSprint();
+ 	void					HideWeapon();
+ 	void					ShowWeapon();
+ 	void					HideWorldModel();

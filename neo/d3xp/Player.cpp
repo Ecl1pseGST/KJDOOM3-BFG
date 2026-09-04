@@ -1510,6 +1510,8 @@ idPlayer::idPlayer():
 	deathClearContentsTime	= 0;
 	lastArmorPulse			= -10000;
 	stamina					= 0.0f;
+	isSprinting				= false;	// KJ
+	wasSprintingLastFrame	= false;	// KJ
 	healthPool				= 0.0f;
 	nextHealthPulse			= 0;
 	healthPulse				= false;
@@ -1836,6 +1838,8 @@ void idPlayer::Init()
 
 	bobCycle		= 0;
 	stamina			= 0.0f;
+	isSprinting				= false;	// KJ
+	wasSprintingLastFrame	= false;	// KJ
 	healthPool		= 0.0f;
 	nextHealthPulse = 0;
 	healthPulse		= false;
@@ -5728,7 +5732,24 @@ void idPlayer::Weapon_Combat()
 	AI_WEAPON_FIRED = false;
 	if( !influenceActive )
 	{
-		if( ( usercmd.buttons & BUTTON_ATTACK ) && !weaponGone )
+		// KJ: wasSprintingLastFrame (not the current isSprinting) is
+		// deliberately used here - UpdateWeapon() runs after AdjustSpeed()
+		// within the same tick, so isSprinting has already flipped to
+		// false the instant BUTTON_ATTACK is pressed (pressing attack
+		// cancels sprint - see idPlayer::AdjustSpeed()). Using the
+		// lagged flag suppresses firing for exactly the one tick where
+		// sprint is cancelling, so the player genuinely has to stop
+		// sprinting before a shot goes off, rather than firing and
+		// cancelling sprint simultaneously on the same tick.
+		// KJ: TEMPORARY DEBUG
+		if( ( usercmd.buttons & BUTTON_ATTACK ) && IsLocallyControlled() )
+		{
+			gameLocal.Printf( "[SPRINT DEBUG] ATTACK pressed - wasSprintingLastFrame=%d weaponGone=%d willFire=%d\n",
+							   wasSprintingLastFrame, weaponGone,
+							   ( !weaponGone && !wasSprintingLastFrame ) ? 1 : 0 );
+		}
+
+		if( ( usercmd.buttons & BUTTON_ATTACK ) && !weaponGone && !wasSprintingLastFrame )
 		{
 			FireWeapon();
 		}
@@ -8024,59 +8045,110 @@ idPlayer::AdjustSpeed
 void idPlayer::AdjustSpeed()
 {
 	float speed;
-	float rate;
+
+	// KJ: track sprint state one tick behind, for gating actions that run
+	// either before (zoom engage, in Think()/ClientThink()) or after
+	// (weapon fire, in UpdateWeapon()) this function within the same tick
+	wasSprintingLastFrame = isSprinting;
 
 	if( spectating )
 	{
 		speed = pm_spectatespeed.GetFloat();
 		bobFrac = 0.0f;
+		isSprinting = false;
 	}
 	else if( noclip )
 	{
 		speed = pm_noclipspeed.GetFloat();
 		bobFrac = 0.0f;
-	}
-	else if( !physicsObj.OnLadder() && ( usercmd.buttons & BUTTON_RUN ) && ( usercmd.forwardmove || usercmd.rightmove ) && !( usercmd.buttons & BUTTON_CROUCH ) )
-	{
-		if( !common->IsMultiplayer() && !physicsObj.IsCrouching() && !PowerUpActive( ADRENALINE ) )
-		{
-			stamina -= MS2SEC( gameLocal.time - gameLocal.previousTime );
-		}
-		if( stamina < 0 )
-		{
-			stamina = 0;
-		}
-		if( ( !pm_stamina.GetFloat() ) || ( stamina > pm_staminathreshold.GetFloat() ) )
-		{
-			bobFrac = 1.0f;
-		}
-		else if( pm_staminathreshold.GetFloat() <= 0.0001f )
-		{
-			bobFrac = 0.0f;
-		}
-		else
-		{
-			bobFrac = stamina / pm_staminathreshold.GetFloat();
-		}
-		speed = pm_walkspeed.GetFloat() * ( 1.0f - bobFrac ) + pm_runspeed.GetFloat() * bobFrac;
+		isSprinting = false;
 	}
 	else
 	{
-		rate = pm_staminarate.GetFloat();
+		// KJ: BO2-style run/sprint. pm_walkspeed is now the always-on
+		// default move speed - there's no separate "walk" state anymore -
+		// and holding the Run button boosts to pm_runspeed ("sprint") for
+		// as long as it's held, with no stamina drain or duration limit
+		// (matching BO2, which has no sprint meter). This function is the
+		// single shared speed calculation for both idPlayer::Think() and
+		// idPlayer::ClientThink(), so behavior is identical in SP and MP.
+		//
+		// Sprint is disallowed - and immediately cancels if already
+		// sprinting - while on a ladder, while crouched, or while the
+		// attack or zoom buttons are held, so the player can't fire or ADS
+		// while sprinting; they have to let go of Run first. See the
+		// wasSprintingLastFrame gate on BUTTON_ATTACK in UpdateWeapon(),
+		// and the isSprinting gates on the BUTTON_ZOOM engage checks in
+		// Think() and ClientThink(), which both key off this.
+		isSprinting = !physicsObj.OnLadder()
+					  && ( usercmd.buttons & BUTTON_RUN )
+					  && ( usercmd.forwardmove || usercmd.rightmove )
+					  && !( usercmd.buttons & BUTTON_CROUCH )
+					  && !physicsObj.IsCrouching()
+					  && !( usercmd.buttons & BUTTON_ATTACK )
+					  && !( usercmd.buttons & BUTTON_ZOOM );
 
-		// increase 25% faster when not moving
-		if( ( usercmd.forwardmove == 0 ) && ( usercmd.rightmove == 0 ) && ( !physicsObj.OnLadder() || ( ( usercmd.buttons & ( BUTTON_CROUCH | BUTTON_JUMP ) ) == 0 ) ) )
+		if( isSprinting )
 		{
-			rate *= 1.25f;
+			speed = pm_runspeed.GetFloat();
+			bobFrac = 1.0f;
 		}
+		else
+		{
+			speed = pm_walkspeed.GetFloat();
+			bobFrac = 0.0f;
+		}
+	}
 
-		stamina += rate * MS2SEC( gameLocal.time - gameLocal.previousTime );
-		if( stamina > pm_stamina.GetFloat() )
+	// KJ: hide/show the weapon on sprint start/stop. Uses
+	// LowerWeaponForSprint()/RaiseWeaponForSprint() (see Weapon.cpp/.h) -
+	// a smooth position-offset hide, the same underlying mechanism as the
+	// existing LowerWeapon()/RaiseWeapon() PDA-look dip, just with a much
+	// larger distance and its own constants so it doesn't reuse/corrupt
+	// hideDistance or hideTime.
+	//
+	// Deliberately NOT using the Raise()/PutAway() animation state
+	// machine (WP_RISING/WP_LOWERING/WP_HOLSTERED) here - that's what the
+	// weapon-switch system uses, and idPlayer::Weapon_Combat() has
+	// existing logic that automatically re-raises a holstered weapon the
+	// moment it sees "holstered with nothing to switch to," which fought
+	// against a sprint-triggered PutAway() every single frame. The hide-
+	// offset approach is a completely separate mechanism (position only,
+	// not weapon status), so it doesn't interact with that logic at all.
+	// This is a placeholder until real sprint animations exist - the
+	// weapon just moves off-screen rather than genuinely animating into a
+	// sprint pose. Firing is still blocked purely by the
+	// wasSprintingLastFrame gate in UpdateWeapon(), independent of this.
+	//
+	// Not yet extended to swimming - a full sprint-while-swimming pass
+	// (distinct swim-stroke animation, can't fire while swim-sprinting,
+	// same as underwater combat otherwise being allowed - BO3-style) is
+	// planned as a followup, not implemented here.
+	// KJ: TEMPORARY DEBUG - remove once the transition-edge bug is found.
+	// Prints every tick with the actual values, gated to the locally
+	// controlled player only so it doesn't spam for every client in MP.
+	if( IsLocallyControlled() )
+	{
+		gameLocal.Printf( "[SPRINT DEBUG] isSprinting=%d wasSprintingLastFrame=%d BUTTON_RUN=%d weaponValid=%d time=%d\n",
+						   isSprinting, wasSprintingLastFrame,
+						   ( usercmd.buttons & BUTTON_RUN ) ? 1 : 0,
+						   weapon.GetEntity() != NULL,
+						   gameLocal.time );
+	}
+
+	if( isSprinting != wasSprintingLastFrame && weapon.GetEntity() )
+	{
+		// KJ: TEMPORARY DEBUG
+		gameLocal.Printf( "[SPRINT DEBUG] TRANSITION FIRED - isSprinting=%d\n", isSprinting );
+
+		if( isSprinting )
 		{
-			stamina = pm_stamina.GetFloat();
+			weapon.GetEntity()->LowerWeaponForSprint();
 		}
-		speed = pm_walkspeed.GetFloat();
-		bobFrac = 0.0f;
+		else
+		{
+			weapon.GetEntity()->RaiseWeaponForSprint();
+		}
 	}
 
 	speed *= PowerUpModifier( SPEED );
@@ -9147,7 +9219,10 @@ void idPlayer::Think()
 	// zooming
 	if( ( usercmd.buttons ^ oldCmd.buttons ) & BUTTON_ZOOM )
 	{
-		if( ( usercmd.buttons & BUTTON_ZOOM ) && weapon.GetEntity() )
+		// KJ: block ADS while sprinting (isSprinting here reflects last
+		// tick's state, since this runs before AdjustSpeed() this tick -
+		// see idPlayer::AdjustSpeed())
+		if( ( usercmd.buttons & BUTTON_ZOOM ) && weapon.GetEntity() && !isSprinting )
 		{
 			zoomFov.Init( gameLocal.time, 200.0f, CalcFov( false ), weapon.GetEntity()->GetZoomFov() );
 		}
@@ -11612,7 +11687,10 @@ void idPlayer::ClientThink( const int curTime, const float fraction, const bool 
 		// zooming
 		if( ( usercmd.buttons ^ oldCmd.buttons ) & BUTTON_ZOOM )
 		{
-			if( ( usercmd.buttons & BUTTON_ZOOM ) && weapon.GetEntity() )
+			// KJ: block ADS while sprinting (isSprinting here reflects
+			// last tick's state, since this runs before AdjustSpeed()
+			// this tick - see idPlayer::AdjustSpeed())
+			if( ( usercmd.buttons & BUTTON_ZOOM ) && weapon.GetEntity() && !isSprinting )
 			{
 				zoomFov.Init( gameLocal.time, 200.0f, CalcFov( false ), weapon.GetEntity()->GetZoomFov() );
 			}

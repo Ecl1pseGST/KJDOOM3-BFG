@@ -370,6 +370,14 @@ public:
 	bool					doingDeathSkin;
 	int						lastArmorPulse;		// lastDmgTime if we had armor at time of hit
 	float					stamina;
+	// KJ: BO2-style sprint state - see idPlayer::AdjustSpeed() in
+	// Player.cpp for the full explanation. wasSprintingLastFrame exists
+	// specifically because weapon fire (UpdateWeapon(), which runs after
+	// AdjustSpeed() within the same tick) needs to check the sprint state
+	// as it was when the attack button was first pressed, not the
+	// already-updated current-tick value.
+	bool					isSprinting;
+	bool					wasSprintingLastFrame;
 	float					healthPool;			// amount of health to give over time
 	int						nextHealthPulse;
 	bool					healthPulse;
