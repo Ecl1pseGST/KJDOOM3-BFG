@@ -378,6 +378,20 @@ public:
 	// already-updated current-tick value.
 	bool					isSprinting;
 	bool					wasSprintingLastFrame;
+	// KJ: BO2-style sprint meter (seconds of sprint remaining, 0..
+	// pm_sprintTime). Depletes while sprinting, recharges while not, both
+	// timed by pm_sprintTime/pm_sprintRechargeTime. No HUD bar - the
+	// stamina bar widget is earmarked for swimming breath instead.
+	// pm_sprintUnlimited (stand-in for the eventual Marathon/StaminUp
+	// perk) skips depletion entirely. See idPlayer::AdjustSpeed().
+	float					sprintMeter;
+	int						sprintMeterLastTime;
+	// KJ: latches true the instant sprintMeter hits empty, and blocks
+	// sprint from re-triggering until BUTTON_RUN is released - otherwise
+	// sprint flickers on/off every tick as the meter recovers by a hair
+	// while Run is still held. Clears on release, not on refill, since
+	// BO2 requires letting go of Run to regain sprint eligibility.
+	bool					sprintExhausted;
 	float					healthPool;			// amount of health to give over time
 	int						nextHealthPulse;
 	bool					healthPulse;
@@ -968,6 +982,12 @@ private:
 	void					UpdateViewAngles();
 	void					EvaluateControls();
 	void					AdjustSpeed();
+	// KJ: returns the movement speed multiplier for the currently held
+	// weapon's weight class (light/medium/heavy). Always 1.0 for now -
+	// there's no weight-class field on weapons yet to read. Wire this up
+	// once weapon classes exist; pm_weaponSpeedScaleMedium/Heavy are
+	// already in place to tune against.
+	float					GetWeaponSpeedScale() const;
 	void					AdjustBodyAngles();
 	void					InitAASLocation();
 	void					SetAASLocation();

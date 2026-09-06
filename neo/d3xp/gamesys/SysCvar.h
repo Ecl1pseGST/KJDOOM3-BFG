@@ -163,6 +163,15 @@ extern idCVar	pm_stepsize;
 extern idCVar	pm_crouchspeed;
 extern idCVar	pm_walkspeed;
 extern idCVar	pm_runspeed;
+// KJ: BO2-style sprint meter - see idPlayer::AdjustSpeed() in Player.cpp
+extern idCVar	pm_sprintTime;
+extern idCVar	pm_sprintRechargeTime;
+extern idCVar	pm_sprintUnlimited;
+// KJ: weapon weight class speed scaling - see idPlayer::GetWeaponSpeedScale().
+// Classes aren't assigned per-weapon yet, so these aren't wired up to
+// anything in-game yet; they exist so the numbers can be tuned now.
+extern idCVar	pm_weaponSpeedScaleMedium;
+extern idCVar	pm_weaponSpeedScaleHeavy;
 extern idCVar	pm_noclipspeed;
 extern idCVar	pm_spectatespeed;
 extern idCVar	pm_spectatebbox;

@@ -369,8 +369,8 @@ entityDef player_doommarine_mp {
 	"deathSkinTime"						"500"	// how long once dead before setting the dead body contents to 0
 
 	"health"							"100"
-	"pm_walkspeed"						"200"
-	"pm_runspeed"						"275"
+	"pm_walkspeed"						"180"
+	"pm_runspeed"						"280"
 	"maxarmor"							"200"
 	"deplete_armor"						"100"	// deplete the armor when above this
 	"deplete_rate"						"1.5"	// every x seconds

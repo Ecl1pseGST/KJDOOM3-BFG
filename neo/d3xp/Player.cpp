@@ -1840,6 +1840,9 @@ void idPlayer::Init()
 	stamina			= 0.0f;
 	isSprinting				= false;	// KJ
 	wasSprintingLastFrame	= false;	// KJ
+	sprintMeter				= pm_sprintTime.GetFloat();		// KJ: sprint meter starts full
+	sprintMeterLastTime	= gameLocal.time;					// KJ
+	sprintExhausted			= false;							// KJ
 	healthPool		= 0.0f;
 	nextHealthPulse = 0;
 	healthPulse		= false;
@@ -2389,6 +2392,7 @@ void idPlayer::Save( idSaveGame* savefile ) const
 	savefile->WriteBool( doingDeathSkin );
 	savefile->WriteInt( lastArmorPulse );
 	savefile->WriteFloat( stamina );
+	savefile->WriteFloat( sprintMeter );	// KJ
 	savefile->WriteFloat( healthPool );
 	savefile->WriteInt( nextHealthPulse );
 	savefile->WriteBool( healthPulse );
@@ -2688,6 +2692,9 @@ void idPlayer::Restore( idRestoreGame* savefile )
 	savefile->ReadBool( doingDeathSkin );
 	savefile->ReadInt( lastArmorPulse );
 	savefile->ReadFloat( stamina );
+	savefile->ReadFloat( sprintMeter );	// KJ
+	sprintMeterLastTime = gameLocal.time;	// KJ: avoid a huge dt on the first tick after load
+	sprintExhausted = false;				// KJ: don't carry a mid-cooldown latch across a load
 	savefile->ReadFloat( healthPool );
 	savefile->ReadInt( nextHealthPulse );
 	savefile->ReadBool( healthPulse );
@@ -8039,6 +8046,23 @@ void idPlayer::EvaluateControls()
 
 /*
 ==============
+idPlayer::GetWeaponSpeedScale
+
+KJ: movement speed multiplier for the currently held weapon's weight class
+(light/medium/heavy - see pm_weaponSpeedScaleMedium/Heavy). Weapons don't
+have a weight-class field yet, so this always returns 1.0 (light) for now.
+Once weapon defs carry something like "weaponWeightClass" "medium", read it
+here (via weapon.GetEntity()->GetWeaponWeightClass() or similar) and return
+the matching cvar's value.
+==============
+*/
+float idPlayer::GetWeaponSpeedScale() const
+{
+	return 1.0f;
+}
+
+/*
+==============
 idPlayer::AdjustSpeed
 ==============
 */
@@ -8068,16 +8092,19 @@ void idPlayer::AdjustSpeed()
 		// KJ: BO2-style run/sprint. pm_walkspeed is now the always-on
 		// default move speed - there's no separate "walk" state anymore -
 		// and holding the Run button boosts to pm_runspeed ("sprint") for
-		// as long as it's held, with no stamina drain or duration limit
-		// (matching BO2, which has no sprint meter). This function is the
-		// single shared speed calculation for both idPlayer::Think() and
-		// idPlayer::ClientThink(), so behavior is identical in SP and MP.
+		// as long as it's held AND the sprint meter isn't empty (see the
+		// meter update below). This function is the single shared speed
+		// calculation for both idPlayer::Think() and idPlayer::ClientThink(),
+		// so behavior is identical in SP and MP.
 		//
 		// Sprint is disallowed - and immediately cancels if already
-		// sprinting - while on a ladder, while crouched, or while the
-		// attack or zoom buttons are held, so the player can't fire or ADS
-		// while sprinting; they have to let go of Run first. See the
-		// wasSprintingLastFrame gate on BUTTON_ATTACK in UpdateWeapon(),
+		// sprinting - while on a ladder, while crouched, while the attack
+		// or zoom buttons are held (so the player can't fire or ADS while
+		// sprinting; they have to let go of Run first), or once the sprint
+		// meter is empty. pm_sprintUnlimited bypasses the meter entirely -
+		// it's a manual stand-in for the eventual Marathon/StaminUp perk,
+		// which will flip this at runtime once the perk system exists. See
+		// the wasSprintingLastFrame gate on BUTTON_ATTACK in UpdateWeapon(),
 		// and the isSprinting gates on the BUTTON_ZOOM engage checks in
 		// Think() and ClientThink(), which both key off this.
 		isSprinting = !physicsObj.OnLadder()
@@ -8086,7 +8113,9 @@ void idPlayer::AdjustSpeed()
 					  && !( usercmd.buttons & BUTTON_CROUCH )
 					  && !physicsObj.IsCrouching()
 					  && !( usercmd.buttons & BUTTON_ATTACK )
-					  && !( usercmd.buttons & BUTTON_ZOOM );
+					  && !( usercmd.buttons & BUTTON_ZOOM )
+					  && ( sprintMeter > 0.0f || pm_sprintUnlimited.GetBool() )
+					  && !sprintExhausted;
 
 		if( isSprinting )
 		{
@@ -8097,6 +8126,54 @@ void idPlayer::AdjustSpeed()
 		{
 			speed = pm_walkspeed.GetFloat();
 			bobFrac = 0.0f;
+		}
+
+		// KJ: weapon weight class speed scale - always 1.0 until weapon
+		// classes exist, see GetWeaponSpeedScale().
+		speed *= GetWeaponSpeedScale();
+	}
+
+	// KJ: sprint meter - depletes while sprinting, recharges while not,
+	// timed by pm_sprintTime/pm_sprintRechargeTime. Deliberately has no HUD
+	// bar (see the member declaration in Player.h). Updated here, after
+	// isSprinting is finalized above, so this tick's sprint state is what
+	// actually drains/recharges it; the meter itself gates *next* tick's
+	// sprint eligibility.
+	{
+		float dt = MS2SEC( gameLocal.time - sprintMeterLastTime );
+		sprintMeterLastTime = gameLocal.time;
+		// clamp defensively - a level load, pause, or the first tick after
+		// a savegame restore can otherwise produce a huge or negative delta
+		dt = idMath::ClampFloat( 0.0f, 1.0f, dt );
+
+		if( pm_sprintUnlimited.GetBool() )
+		{
+			sprintMeter = pm_sprintTime.GetFloat();
+		}
+		else if( isSprinting )
+		{
+			sprintMeter -= dt;
+		}
+		else
+		{
+			float rechargeTime = idMath::ClampFloat( 0.001f, 3600.0f, pm_sprintRechargeTime.GetFloat() );
+			sprintMeter += dt * ( pm_sprintTime.GetFloat() / rechargeTime );
+		}
+		sprintMeter = idMath::ClampFloat( 0.0f, pm_sprintTime.GetFloat(), sprintMeter );
+
+		// KJ: latch the cooldown the instant the meter empties, so holding
+		// Run through empty just walks instead of flickering in and out of
+		// sprint every tick as the meter recovers by a fraction of a
+		// second. Only releasing Run clears it - reaching a nonzero meter
+		// value is deliberately NOT enough, since BO2 requires letting go
+		// to regain sprint eligibility, not just waiting it out while held.
+		if( sprintMeter <= 0.0f && !pm_sprintUnlimited.GetBool() )
+		{
+			sprintExhausted = true;
+		}
+		if( !( usercmd.buttons & BUTTON_RUN ) )
+		{
+			sprintExhausted = false;
 		}
 	}
 
@@ -8129,10 +8206,13 @@ void idPlayer::AdjustSpeed()
 	// controlled player only so it doesn't spam for every client in MP.
 	if( IsLocallyControlled() )
 	{
-		gameLocal.Printf( "[SPRINT DEBUG] isSprinting=%d wasSprintingLastFrame=%d BUTTON_RUN=%d weaponValid=%d time=%d\n",
+		gameLocal.Printf( "[SPRINT DEBUG] isSprinting=%d wasSprintingLastFrame=%d BUTTON_RUN=%d weaponValid=%d sprintMeter=%.3f unlimited=%d exhausted=%d time=%d\n",
 						   isSprinting, wasSprintingLastFrame,
 						   ( usercmd.buttons & BUTTON_RUN ) ? 1 : 0,
 						   weapon.GetEntity() != NULL,
+						   sprintMeter,
+						   pm_sprintUnlimited.GetBool(),
+						   sprintExhausted,
 						   gameLocal.time );
 	}
 

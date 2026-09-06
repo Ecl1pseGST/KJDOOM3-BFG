@@ -241,7 +241,19 @@ idCVar pm_crouchspeed(				"pm_crouchspeed",			"80",			CVAR_GAME | CVAR_NETWORKSY
 // as-is rather than renamed, since they're CVAR_NETWORKSYNC and already
 // referenced by existing configs/network sync code.
 idCVar pm_walkspeed(				"pm_walkspeed",				"180",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "default move speed (BO2-style run/sprint - see AdjustSpeed())" );
-idCVar pm_runspeed(					"pm_runspeed",				"270",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "sprint speed while holding Run (BO2-style run/sprint - see AdjustSpeed())" );
+idCVar pm_runspeed(					"pm_runspeed",				"280",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "sprint speed while holding Run (BO2-style run/sprint - see AdjustSpeed())" );
+// KJ: BO2-style sprint meter. No HUD bar by design - the existing stamina
+// bar widget is earmarked for swimming breath instead. pm_sprintUnlimited
+// is a manual stand-in for the eventual Marathon/StaminUp perk, which will
+// toggle this at runtime once the perk system exists.
+idCVar pm_sprintTime(					"pm_sprintTime",			"4",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "seconds the player can sprint continuously before the sprint meter runs out (BO2-style - see AdjustSpeed())" );
+idCVar pm_sprintRechargeTime(			"pm_sprintRechargeTime",	"4",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "seconds for the sprint meter to fully recharge from empty while not sprinting" );
+idCVar pm_sprintUnlimited(				"pm_sprintUnlimited",		"0",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_BOOL, "disables sprint meter depletion entirely - stand-in for the eventual Marathon/StaminUp perk" );
+// KJ: weapon weight class speed scaling. Not wired to any weapon yet -
+// there's no weight-class field on weapons to read. See
+// idPlayer::GetWeaponSpeedScale() in Player.cpp.
+idCVar pm_weaponSpeedScaleMedium(		"pm_weaponSpeedScaleMedium", "0.95",		CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "movement speed multiplier while holding a medium weight weapon (not yet wired up - see idPlayer::GetWeaponSpeedScale())" );
+idCVar pm_weaponSpeedScaleHeavy(		"pm_weaponSpeedScaleHeavy", "0.85",		CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "movement speed multiplier while holding a heavy weight weapon (not yet wired up - see idPlayer::GetWeaponSpeedScale())" );
 idCVar pm_noclipspeed(				"pm_noclipspeed",			"200",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "speed the player can move while in noclip" );
 idCVar pm_spectatespeed(			"pm_spectatespeed",			"450",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "speed the player can move while spectating" );
 idCVar pm_spectatebbox(				"pm_spectatebbox",			"32",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "size of the spectator bounding box" );

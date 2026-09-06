@@ -2662,7 +2662,18 @@ void idGameLocal::RunFrame( idUserCmdMgr& cmdMgr, gameReturn_t& ret )
 	}
 
 	SyncPlayersWithLobbyUsers( false );
-	ServerSendNetworkSyncCvars();
+	if( common->IsMultiplayer() )
+	{
+		// KJ: this broadcasts CVAR_NETWORKSYNC cvars (pm_walkspeed, pm_runspeed,
+		// etc.) to remote clients and is purely an MP anti-cheat measure. It has
+		// no purpose in SP, and running it there caused a feedback loop: on
+		// receipt, ClientProcessReliableMessage() does ResetFlaggedVariables()
+		// then SetCVarsFromDict(), and BOTH of those value changes re-arm the
+		// CVAR_NETWORKSYNC modified flag, so the very next frame sends it again,
+		// forever - which is what was fighting our BO2 walkspeed/runspeed
+		// changes. See ServerSendNetworkSyncCvars() in Game_network.cpp.
+		ServerSendNetworkSyncCvars();
+	}
 
 	player = GetLocalPlayer();
 

@@ -1,0 +1,293 @@
+diff --git a/base/def/d3le-player.def b/base/def/d3le-player.def
+index 76c0ee4..2319405 100644
+--- a/base/def/d3le-player.def
++++ b/base/def/d3le-player.def
+@@ -142,8 +142,8 @@ entityDef player_id_base_d3le {
+ 	"pm_jumpheight"						"48"
+ 	"pm_stepsize"						"16"
+ 	"pm_crouchspeed"					"100"
+-	"pm_walkspeed"						"175"
+-	"pm_runspeed"						"275"
++	"pm_walkspeed"						"180"
++	"pm_runspeed"						"280"
+ 	"pm_noclipspeed"					"300"
+ 	"pm_minviewpitch"					"-89"	// looking up
+ 	"pm_maxviewpitch"					"89"	// looking down
+diff --git a/base/def/d3xp-player.def b/base/def/d3xp-player.def
+index 34d2416..b274a3d 100644
+--- a/base/def/d3xp-player.def
++++ b/base/def/d3xp-player.def
+@@ -148,8 +148,8 @@ entityDef player_id_base {
+ 	"pm_jumpheight"						"48"
+ 	"pm_stepsize"						"16"
+ 	"pm_crouchspeed"					"100"
+-	"pm_walkspeed"						"175"
+-	"pm_runspeed"						"275"
++	"pm_walkspeed"						"180"
++	"pm_runspeed"						"280"
+ 	"pm_noclipspeed"					"300"
+ 	"pm_minviewpitch"					"-89"	// looking up
+ 	"pm_maxviewpitch"					"89"	// looking down
+diff --git a/base/def/mp.def b/base/def/mp.def
+index d8b8d31..d8ab83a 100644
+--- a/base/def/mp.def
++++ b/base/def/mp.def
+@@ -369,8 +369,8 @@ entityDef player_doommarine_mp {
+ 	"deathSkinTime"						"500"	// how long once dead before setting the dead body contents to 0
+ 
+ 	"health"							"100"
+-	"pm_walkspeed"						"200"
+-	"pm_runspeed"						"275"
++	"pm_walkspeed"						"180"
++	"pm_runspeed"						"280"
+ 	"maxarmor"							"200"
+ 	"deplete_armor"						"100"	// deplete the armor when above this
+ 	"deplete_rate"						"1.5"	// every x seconds
+diff --git a/base/def/player.def b/base/def/player.def
+index 4d91141..9034715 100644
+--- a/base/def/player.def
++++ b/base/def/player.def
+@@ -819,8 +819,8 @@ entityDef player_base {
+ 	"pm_jumpheight"						"48"
+ 	"pm_stepsize"						"16"
+ 	"pm_crouchspeed"					"100"
+-	"pm_walkspeed"						"175"
+-	"pm_runspeed"						"275"
++	"pm_walkspeed"						"180"
++	"pm_runspeed"						"280"
+ 	"pm_noclipspeed"					"300"
+ 	"pm_minviewpitch"					"-89"	// looking up
+ 	"pm_maxviewpitch"					"89"	// looking down
+diff --git a/neo/d3xp/Game_local.cpp b/neo/d3xp/Game_local.cpp
+index e48c700..b5b4a7f 100644
+--- a/neo/d3xp/Game_local.cpp
++++ b/neo/d3xp/Game_local.cpp
+@@ -2662,7 +2662,18 @@ void idGameLocal::RunFrame( idUserCmdMgr& cmdMgr, gameReturn_t& ret )
+ 	}
+ 
+ 	SyncPlayersWithLobbyUsers( false );
+-	ServerSendNetworkSyncCvars();
++	if( common->IsMultiplayer() )
++	{
++		// KJ: this broadcasts CVAR_NETWORKSYNC cvars (pm_walkspeed, pm_runspeed,
++		// etc.) to remote clients and is purely an MP anti-cheat measure. It has
++		// no purpose in SP, and running it there caused a feedback loop: on
++		// receipt, ClientProcessReliableMessage() does ResetFlaggedVariables()
++		// then SetCVarsFromDict(), and BOTH of those value changes re-arm the
++		// CVAR_NETWORKSYNC modified flag, so the very next frame sends it again,
++		// forever - which is what was fighting our BO2 walkspeed/runspeed
++		// changes. See ServerSendNetworkSyncCvars() in Game_network.cpp.
++		ServerSendNetworkSyncCvars();
++	}
+ 
+ 	player = GetLocalPlayer();
+ 
+diff --git a/neo/d3xp/Player.cpp b/neo/d3xp/Player.cpp
+index 44ae9a0..72c47cf 100644
+--- a/neo/d3xp/Player.cpp
++++ b/neo/d3xp/Player.cpp
+@@ -1840,6 +1840,8 @@ void idPlayer::Init()
+ 	stamina			= 0.0f;
+ 	isSprinting				= false;	// KJ
+ 	wasSprintingLastFrame	= false;	// KJ
++	sprintMeter				= pm_sprintTime.GetFloat();		// KJ: sprint meter starts full
++	sprintMeterLastTime	= gameLocal.time;					// KJ
+ 	healthPool		= 0.0f;
+ 	nextHealthPulse = 0;
+ 	healthPulse		= false;
+@@ -2389,6 +2391,7 @@ void idPlayer::Save( idSaveGame* savefile ) const
+ 	savefile->WriteBool( doingDeathSkin );
+ 	savefile->WriteInt( lastArmorPulse );
+ 	savefile->WriteFloat( stamina );
++	savefile->WriteFloat( sprintMeter );	// KJ
+ 	savefile->WriteFloat( healthPool );
+ 	savefile->WriteInt( nextHealthPulse );
+ 	savefile->WriteBool( healthPulse );
+@@ -2688,6 +2691,8 @@ void idPlayer::Restore( idRestoreGame* savefile )
+ 	savefile->ReadBool( doingDeathSkin );
+ 	savefile->ReadInt( lastArmorPulse );
+ 	savefile->ReadFloat( stamina );
++	savefile->ReadFloat( sprintMeter );	// KJ
++	sprintMeterLastTime = gameLocal.time;	// KJ: avoid a huge dt on the first tick after load
+ 	savefile->ReadFloat( healthPool );
+ 	savefile->ReadInt( nextHealthPulse );
+ 	savefile->ReadBool( healthPulse );
+@@ -8037,6 +8042,23 @@ void idPlayer::EvaluateControls()
+ 	UpdateViewAngles();
+ }
+ 
++/*
++==============
++idPlayer::GetWeaponSpeedScale
++
++KJ: movement speed multiplier for the currently held weapon's weight class
++(light/medium/heavy - see pm_weaponSpeedScaleMedium/Heavy). Weapons don't
++have a weight-class field yet, so this always returns 1.0 (light) for now.
++Once weapon defs carry something like "weaponWeightClass" "medium", read it
++here (via weapon.GetEntity()->GetWeaponWeightClass() or similar) and return
++the matching cvar's value.
++==============
++*/
++float idPlayer::GetWeaponSpeedScale() const
++{
++	return 1.0f;
++}
++
+ /*
+ ==============
+ idPlayer::AdjustSpeed
+@@ -8068,16 +8090,19 @@ void idPlayer::AdjustSpeed()
+ 		// KJ: BO2-style run/sprint. pm_walkspeed is now the always-on
+ 		// default move speed - there's no separate "walk" state anymore -
+ 		// and holding the Run button boosts to pm_runspeed ("sprint") for
+-		// as long as it's held, with no stamina drain or duration limit
+-		// (matching BO2, which has no sprint meter). This function is the
+-		// single shared speed calculation for both idPlayer::Think() and
+-		// idPlayer::ClientThink(), so behavior is identical in SP and MP.
++		// as long as it's held AND the sprint meter isn't empty (see the
++		// meter update below). This function is the single shared speed
++		// calculation for both idPlayer::Think() and idPlayer::ClientThink(),
++		// so behavior is identical in SP and MP.
+ 		//
+ 		// Sprint is disallowed - and immediately cancels if already
+-		// sprinting - while on a ladder, while crouched, or while the
+-		// attack or zoom buttons are held, so the player can't fire or ADS
+-		// while sprinting; they have to let go of Run first. See the
+-		// wasSprintingLastFrame gate on BUTTON_ATTACK in UpdateWeapon(),
++		// sprinting - while on a ladder, while crouched, while the attack
++		// or zoom buttons are held (so the player can't fire or ADS while
++		// sprinting; they have to let go of Run first), or once the sprint
++		// meter is empty. pm_sprintUnlimited bypasses the meter entirely -
++		// it's a manual stand-in for the eventual Marathon/StaminUp perk,
++		// which will flip this at runtime once the perk system exists. See
++		// the wasSprintingLastFrame gate on BUTTON_ATTACK in UpdateWeapon(),
+ 		// and the isSprinting gates on the BUTTON_ZOOM engage checks in
+ 		// Think() and ClientThink(), which both key off this.
+ 		isSprinting = !physicsObj.OnLadder()
+@@ -8086,7 +8111,8 @@ void idPlayer::AdjustSpeed()
+ 					  && !( usercmd.buttons & BUTTON_CROUCH )
+ 					  && !physicsObj.IsCrouching()
+ 					  && !( usercmd.buttons & BUTTON_ATTACK )
+-					  && !( usercmd.buttons & BUTTON_ZOOM );
++					  && !( usercmd.buttons & BUTTON_ZOOM )
++					  && ( sprintMeter > 0.0f || pm_sprintUnlimited.GetBool() );
+ 
+ 		if( isSprinting )
+ 		{
+@@ -8098,6 +8124,39 @@ void idPlayer::AdjustSpeed()
+ 			speed = pm_walkspeed.GetFloat();
+ 			bobFrac = 0.0f;
+ 		}
++
++		// KJ: weapon weight class speed scale - always 1.0 until weapon
++		// classes exist, see GetWeaponSpeedScale().
++		speed *= GetWeaponSpeedScale();
++	}
++
++	// KJ: sprint meter - depletes while sprinting, recharges while not,
++	// timed by pm_sprintTime/pm_sprintRechargeTime. Deliberately has no HUD
++	// bar (see the member declaration in Player.h). Updated here, after
++	// isSprinting is finalized above, so this tick's sprint state is what
++	// actually drains/recharges it; the meter itself gates *next* tick's
++	// sprint eligibility.
++	{
++		float dt = MS2SEC( gameLocal.time - sprintMeterLastTime );
++		sprintMeterLastTime = gameLocal.time;
++		// clamp defensively - a level load, pause, or the first tick after
++		// a savegame restore can otherwise produce a huge or negative delta
++		dt = idMath::ClampFloat( 0.0f, 1.0f, dt );
++
++		if( pm_sprintUnlimited.GetBool() )
++		{
++			sprintMeter = pm_sprintTime.GetFloat();
++		}
++		else if( isSprinting )
++		{
++			sprintMeter -= dt;
++		}
++		else
++		{
++			float rechargeTime = idMath::ClampFloat( 0.001f, 3600.0f, pm_sprintRechargeTime.GetFloat() );
++			sprintMeter += dt * ( pm_sprintTime.GetFloat() / rechargeTime );
++		}
++		sprintMeter = idMath::ClampFloat( 0.0f, pm_sprintTime.GetFloat(), sprintMeter );
+ 	}
+ 
+ 	// KJ: hide/show the weapon on sprint start/stop. Uses
+diff --git a/neo/d3xp/Player.h b/neo/d3xp/Player.h
+index 8787750..4d3ce21 100644
+--- a/neo/d3xp/Player.h
++++ b/neo/d3xp/Player.h
+@@ -378,6 +378,14 @@ public:
+ 	// already-updated current-tick value.
+ 	bool					isSprinting;
+ 	bool					wasSprintingLastFrame;
++	// KJ: BO2-style sprint meter (seconds of sprint remaining, 0..
++	// pm_sprintTime). Depletes while sprinting, recharges while not, both
++	// timed by pm_sprintTime/pm_sprintRechargeTime. No HUD bar - the
++	// stamina bar widget is earmarked for swimming breath instead.
++	// pm_sprintUnlimited (stand-in for the eventual Marathon/StaminUp
++	// perk) skips depletion entirely. See idPlayer::AdjustSpeed().
++	float					sprintMeter;
++	int						sprintMeterLastTime;
+ 	float					healthPool;			// amount of health to give over time
+ 	int						nextHealthPulse;
+ 	bool					healthPulse;
+@@ -968,6 +976,12 @@ private:
+ 	void					UpdateViewAngles();
+ 	void					EvaluateControls();
+ 	void					AdjustSpeed();
++	// KJ: returns the movement speed multiplier for the currently held
++	// weapon's weight class (light/medium/heavy). Always 1.0 for now -
++	// there's no weight-class field on weapons yet to read. Wire this up
++	// once weapon classes exist; pm_weaponSpeedScaleMedium/Heavy are
++	// already in place to tune against.
++	float					GetWeaponSpeedScale() const;
+ 	void					AdjustBodyAngles();
+ 	void					InitAASLocation();
+ 	void					SetAASLocation();
+diff --git a/neo/d3xp/gamesys/SysCvar.cpp b/neo/d3xp/gamesys/SysCvar.cpp
+index 6310216..60f879d 100644
+--- a/neo/d3xp/gamesys/SysCvar.cpp
++++ b/neo/d3xp/gamesys/SysCvar.cpp
+@@ -241,7 +241,19 @@ idCVar pm_crouchspeed(				"pm_crouchspeed",			"80",			CVAR_GAME | CVAR_NETWORKSY
+ // as-is rather than renamed, since they're CVAR_NETWORKSYNC and already
+ // referenced by existing configs/network sync code.
+ idCVar pm_walkspeed(				"pm_walkspeed",				"180",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "default move speed (BO2-style run/sprint - see AdjustSpeed())" );
+-idCVar pm_runspeed(					"pm_runspeed",				"270",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "sprint speed while holding Run (BO2-style run/sprint - see AdjustSpeed())" );
++idCVar pm_runspeed(					"pm_runspeed",				"280",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "sprint speed while holding Run (BO2-style run/sprint - see AdjustSpeed())" );
++// KJ: BO2-style sprint meter. No HUD bar by design - the existing stamina
++// bar widget is earmarked for swimming breath instead. pm_sprintUnlimited
++// is a manual stand-in for the eventual Marathon/StaminUp perk, which will
++// toggle this at runtime once the perk system exists.
++idCVar pm_sprintTime(					"pm_sprintTime",			"4",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "seconds the player can sprint continuously before the sprint meter runs out (BO2-style - see AdjustSpeed())" );
++idCVar pm_sprintRechargeTime(			"pm_sprintRechargeTime",	"4",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "seconds for the sprint meter to fully recharge from empty while not sprinting" );
++idCVar pm_sprintUnlimited(				"pm_sprintUnlimited",		"0",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_BOOL, "disables sprint meter depletion entirely - stand-in for the eventual Marathon/StaminUp perk" );
++// KJ: weapon weight class speed scaling. Not wired to any weapon yet -
++// there's no weight-class field on weapons to read. See
++// idPlayer::GetWeaponSpeedScale() in Player.cpp.
++idCVar pm_weaponSpeedScaleMedium(		"pm_weaponSpeedScaleMedium", "0.95",		CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "movement speed multiplier while holding a medium weight weapon (not yet wired up - see idPlayer::GetWeaponSpeedScale())" );
++idCVar pm_weaponSpeedScaleHeavy(		"pm_weaponSpeedScaleHeavy", "0.85",		CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "movement speed multiplier while holding a heavy weight weapon (not yet wired up - see idPlayer::GetWeaponSpeedScale())" );
+ idCVar pm_noclipspeed(				"pm_noclipspeed",			"200",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "speed the player can move while in noclip" );
+ idCVar pm_spectatespeed(			"pm_spectatespeed",			"450",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "speed the player can move while spectating" );
+ idCVar pm_spectatebbox(				"pm_spectatebbox",			"32",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "size of the spectator bounding box" );
+diff --git a/neo/d3xp/gamesys/SysCvar.h b/neo/d3xp/gamesys/SysCvar.h
+index a16027a..762e54f 100644
+--- a/neo/d3xp/gamesys/SysCvar.h
++++ b/neo/d3xp/gamesys/SysCvar.h
+@@ -163,6 +163,15 @@ extern idCVar	pm_stepsize;
+ extern idCVar	pm_crouchspeed;
+ extern idCVar	pm_walkspeed;
+ extern idCVar	pm_runspeed;
++// KJ: BO2-style sprint meter - see idPlayer::AdjustSpeed() in Player.cpp
++extern idCVar	pm_sprintTime;
++extern idCVar	pm_sprintRechargeTime;
++extern idCVar	pm_sprintUnlimited;
++// KJ: weapon weight class speed scaling - see idPlayer::GetWeaponSpeedScale().
++// Classes aren't assigned per-weapon yet, so these aren't wired up to
++// anything in-game yet; they exist so the numbers can be tuned now.
++extern idCVar	pm_weaponSpeedScaleMedium;
++extern idCVar	pm_weaponSpeedScaleHeavy;
+ extern idCVar	pm_noclipspeed;
+ extern idCVar	pm_spectatespeed;
+ extern idCVar	pm_spectatebbox;
