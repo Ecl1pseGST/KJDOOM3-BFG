@@ -90,7 +90,11 @@ public:
 	void					Restore( idRestoreGame* savefile );
 
 	// initialisation
-	void					SetSpeed( const float newWalkSpeed, const float newCrouchSpeed );
+	void					SetSpeed( const float newWalkSpeed, const float newCrouchSpeed, const float newCrawlSpeed );
+	// KJ: physics needs to know if the player is currently sprinting (per idPlayer::AdjustSpeed()'s
+	// isSprinting) purely to detect the dive-to-prone trigger - see CheckDuck(). Doesn't affect
+	// movement speed itself; that's still driven entirely by SetSpeed().
+	void					SetSprinting( const bool sprinting );
 	void					SetMaxStepHeight( const float newMaxStepHeight );
 	float					GetMaxStepHeight() const;
 	void					SetMaxJumpHeight( const float newMaxJumpHeight );
@@ -103,6 +107,12 @@ public:
 	bool					HasSteppedUp() const;
 	float					GetStepUp() const;
 	bool					IsCrouching() const;
+	// KJ: true while prone (always accompanied by IsCrouching() also being true - see CheckDuck()).
+	bool					IsProne() const;
+	// KJ: one-shot pulse, true only on the physics frame the dolphin dive triggered - mirrors
+	// HasJumped()/PMF_JUMPED. Player.cpp mirrors this into the script-linked AI_DIVE the same
+	// way HasJumped() feeds AI_JUMP.
+	bool					HasDived() const;
 	bool					OnLadder() const;
 	const idVec3& 			PlayerGetOrigin() const;	// != GetOrigin
 
@@ -159,6 +169,18 @@ private:
 	// properties
 	float					walkSpeed;
 	float					crouchSpeed;
+	// KJ: prone/crawl/dive state - see idPhysics_Player::CheckDuck().
+	float					crawlSpeed;
+	bool					oldButtonCrouch;	// crouch button state last frame, for edge detection
+	bool					stanceDescending;	// ping-pong direction: true = next press goes deeper (stand->crouch->prone), false = next press goes shallower
+	bool					wantSprinting;		// mirrors idPlayer::AdjustSpeed()'s grace-windowed "recently sprinting" signal, set via SetSprinting() each frame - used only to detect the dive trigger
+	// KJ: dive requires holding BUTTON_CROUCH for pm_diveholdtime while wantSprinting,
+	// not just tapping it - see CheckDuck(). diveArmed is true from the moment of a
+	// press that occurred while wantSprinting was true, until either the hold
+	// threshold is reached (dive fires) or the button releases early (treated as an
+	// ordinary quick crouch-press instead).
+	bool					diveArmed;
+	float					diveHoldTime;
 	float					maxStepHeight;
 	float					maxJumpHeight;
 	int						debugLevel;				// if set, diagnostic output will be printed

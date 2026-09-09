@@ -1696,6 +1696,8 @@ void idPlayer::LinkScriptVariables()
 	AI_JUMP.LinkTo(	scriptObject, "AI_JUMP" );
 	AI_DEAD.LinkTo(	scriptObject, "AI_DEAD" );
 	AI_CROUCH.LinkTo(	scriptObject, "AI_CROUCH" );
+	AI_PRONE.LinkTo(	scriptObject, "AI_PRONE" );		// KJ
+	AI_DIVE.LinkTo(	scriptObject, "AI_DIVE" );			// KJ
 	AI_ONGROUND.LinkTo(	scriptObject, "AI_ONGROUND" );
 	AI_ONLADDER.LinkTo(	scriptObject, "AI_ONLADDER" );
 	AI_HARDLANDING.LinkTo(	scriptObject, "AI_HARDLANDING" );
@@ -1843,6 +1845,7 @@ void idPlayer::Init()
 	sprintMeter				= pm_sprintTime.GetFloat();		// KJ: sprint meter starts full
 	sprintMeterLastTime	= gameLocal.time;					// KJ
 	sprintExhausted			= false;							// KJ
+	lastSprintTime			= 0;								// KJ: 0 is fine - dive grace window just won't be active until the player actually sprints once
 	healthPool		= 0.0f;
 	nextHealthPulse = 0;
 	healthPulse		= false;
@@ -1959,6 +1962,8 @@ void idPlayer::Init()
 	AI_JUMP			= false;
 	AI_DEAD			= false;
 	AI_CROUCH		= false;
+	AI_PRONE		= false;	// KJ
+	AI_DIVE			= false;	// KJ
 	AI_ONGROUND		= true;
 	AI_ONLADDER		= false;
 	AI_HARDLANDING	= false;
@@ -2695,6 +2700,7 @@ void idPlayer::Restore( idRestoreGame* savefile )
 	savefile->ReadFloat( sprintMeter );	// KJ
 	sprintMeterLastTime = gameLocal.time;	// KJ: avoid a huge dt on the first tick after load
 	sprintExhausted = false;				// KJ: don't carry a mid-cooldown latch across a load
+	lastSprintTime = 0;						// KJ: same reasoning
 	savefile->ReadFloat( healthPool );
 	savefile->ReadInt( nextHealthPulse );
 	savefile->ReadBool( healthPulse );
@@ -3699,6 +3705,8 @@ void idPlayer::EnterCinematic()
 	AI_WEAPON_FIRED	= false;
 	AI_JUMP			= false;
 	AI_CROUCH		= false;
+	AI_PRONE		= false;	// KJ
+	AI_DIVE			= false;	// KJ
 	AI_ONGROUND		= true;
 	AI_ONLADDER		= false;
 	AI_DEAD			= ( health <= 0 );
@@ -8238,7 +8246,21 @@ void idPlayer::AdjustSpeed()
 		speed *= 0.33f;
 	}
 
-	physicsObj.SetSpeed( speed, pm_crouchspeed.GetFloat() );
+	physicsObj.SetSpeed( speed, pm_crouchspeed.GetFloat(), pm_crawlspeed.GetFloat() );	// KJ: added crawl speed
+
+	// KJ: dive trigger uses a grace window, not a single-frame lookback. isSprinting
+	// excludes BUTTON_CROUCH by design, so it's already false the instant the player
+	// presses crouch to dive - and a jump takes several frames, during which
+	// isSprinting can legitimately lapse mid-air for reasons unrelated to diving
+	// (see the isSprinting gate above). Rather than chase every individual cause of
+	// a lapse, just remember "was sprinting at all within the last
+	// pm_divegraceperiod seconds" and let physics key off that instead.
+	if( isSprinting )
+	{
+		lastSprintTime = gameLocal.time;
+	}
+	bool recentlySprinting = ( gameLocal.time - lastSprintTime ) <= SEC2MS( pm_divegraceperiod.GetFloat() );
+	physicsObj.SetSprinting( recentlySprinting );
 }
 
 /*
@@ -8554,6 +8576,10 @@ void idPlayer::Move_Interpolated( float fraction )
 	{
 		newEyeOffset = pm_deadviewheight.GetFloat();
 	}
+	else if( physicsObj.IsProne() )		// KJ: checked before IsCrouching() since prone implies it
+	{
+		newEyeOffset = pm_proneviewheight.GetFloat();
+	}
 	else if( physicsObj.IsCrouching() )
 	{
 		newEyeOffset = pm_crouchviewheight.GetFloat();
@@ -8576,11 +8602,13 @@ void idPlayer::Move_Interpolated( float fraction )
 		else
 		{
 			// smooth out duck height changes
-			SetEyeHeight( EyeHeight() * pm_crouchrate.GetFloat() + newEyeOffset * ( 1.0f - pm_crouchrate.GetFloat() ) );
+			// KJ: pm_pronerate governs the crouch<->prone leg specifically; reuse pm_crouchrate
+			// for stand<->crouch. Since this is a single blend toward whichever newEyeOffset was
+			// just selected, pick the rate based on which transition we're mid-way through.
+			const float duckRate = physicsObj.IsProne() ? pm_pronerate.GetFloat() : pm_crouchrate.GetFloat();
+			SetEyeHeight( EyeHeight() * duckRate + newEyeOffset * ( 1.0f - duckRate ) );
 		}
 	}
-
-	if( AI_JUMP )
 	{
 		// bounce the view weapon
 		loggedAccel_t*	acc = &loggedAccel[currentLoggedAccel & ( NUM_LOGGED_ACCELS - 1 )];
@@ -8696,6 +8724,10 @@ void idPlayer::Move()
 	{
 		newEyeOffset = pm_deadviewheight.GetFloat();
 	}
+	else if( physicsObj.IsProne() )		// KJ: checked before IsCrouching() since prone implies it
+	{
+		newEyeOffset = pm_proneviewheight.GetFloat();
+	}
 	else if( physicsObj.IsCrouching() )
 	{
 		newEyeOffset = pm_crouchviewheight.GetFloat();
@@ -8718,13 +8750,16 @@ void idPlayer::Move()
 		else
 		{
 			// smooth out duck height changes
-			SetEyeHeight( EyeHeight() * pm_crouchrate.GetFloat() + newEyeOffset * ( 1.0f - pm_crouchrate.GetFloat() ) );
+			const float duckRate = physicsObj.IsProne() ? pm_pronerate.GetFloat() : pm_crouchrate.GetFloat();	// KJ
+			SetEyeHeight( EyeHeight() * duckRate + newEyeOffset * ( 1.0f - duckRate ) );
 		}
 	}
 
 	if( noclip || gameLocal.inCinematic || ( influenceActive == INFLUENCE_LEVEL2 ) )
 	{
 		AI_CROUCH	= false;
+		AI_PRONE	= false;	// KJ
+		AI_DIVE		= false;	// KJ
 		AI_ONGROUND	= ( influenceActive == INFLUENCE_LEVEL2 );
 		AI_ONLADDER	= false;
 		AI_JUMP		= false;
@@ -8732,6 +8767,8 @@ void idPlayer::Move()
 	else
 	{
 		AI_CROUCH	= physicsObj.IsCrouching();
+		AI_PRONE	= physicsObj.IsProne();		// KJ
+		AI_DIVE		= physicsObj.HasDived();	// KJ
 		AI_ONGROUND	= physicsObj.HasGroundContacts();
 		AI_ONLADDER	= physicsObj.OnLadder();
 		AI_JUMP		= physicsObj.HasJumped();
@@ -12133,6 +12170,8 @@ void idPlayer::WriteToSnapshot( idBitMsg& msg ) const
 	msg.WriteBits( enviroSuitLight.GetSpawnId(), 32 );
 
 	msg.WriteBits( AI_CROUCH, 1 );
+	msg.WriteBits( AI_PRONE, 1 );	// KJ
+	msg.WriteBits( AI_DIVE, 1 );	// KJ
 	msg.WriteBits( AI_ONGROUND, 1 );
 	msg.WriteBits( AI_ONLADDER, 1 );
 	msg.WriteBits( AI_JUMP, 1 );
@@ -12196,6 +12235,8 @@ void idPlayer::ReadFromSnapshot( const idBitMsg& msg )
 	enviroSuitLight.SetSpawnId( enviroSpawnId );
 
 	bool snapshotCrouch = msg.ReadBool();
+	bool snapshotProne = msg.ReadBool();	// KJ
+	bool snapshotDive = msg.ReadBool();	// KJ
 	bool snapshotOnGround = msg.ReadBool();
 	bool snapshotOnLadder = msg.ReadBool();
 	bool snapshotJump = msg.ReadBool();
@@ -12217,6 +12258,8 @@ void idPlayer::ReadFromSnapshot( const idBitMsg& msg )
 		nextViewQuat = snapViewCQuat.ToQuat();
 
 		AI_CROUCH = snapshotCrouch;
+		AI_PRONE = snapshotProne;	// KJ
+		AI_DIVE = snapshotDive;		// KJ
 		AI_ONGROUND = snapshotOnGround;
 		AI_ONLADDER = snapshotOnLadder;
 		AI_JUMP = snapshotJump;

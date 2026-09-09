@@ -31,12 +31,25 @@ object player : player_base {
 	void		Torso_Fire_Aim();
 	void		Torso_RaiseWeapon();
 	void		Torso_LowerWeapon();
+				// KJ: prone/crawl/dive - one-handed rear-grip hold, synced with the Legs_ equivalents
+	void		Torso_Prone();
+	void		Torso_Proned();
+	void		Torso_ProneCrawl();
+	void		Torso_Unprone();
+	void		Torso_Dive();
 	
 				// leg anims
 	void		Legs_Death();
 	void		Legs_Idle();
 	void		Legs_Crouched();
 	void		Legs_Uncrouch();
+				// KJ: prone/crawl/dive
+	void		Legs_Prone();
+	void		Legs_Proned();
+	void		Legs_ProneCrawl();
+	void		Legs_ProneCrawl_Backward();
+	void		Legs_Unprone();
+	void		Legs_Dive();
 	void		Legs_Turn_Left();
 	void		Legs_Turn_Right();
 	void		Legs_Walk();
@@ -161,6 +174,11 @@ void player::Torso_Idle() {
 	playCycle( ANIMCHANNEL_TORSO, "idle" );
 
 	eachFrame {
+		if ( AI_DIVE ) {
+			animState( ANIMCHANNEL_TORSO, "Torso_Dive", 4 );
+		} else if ( AI_PRONE ) {
+			animState( ANIMCHANNEL_TORSO, "Torso_Prone", 4 );
+		}
 		if ( AI_TELEPORT ) {
 			animState( ANIMCHANNEL_TORSO, "Torso_Teleport", 0 );
 		}
@@ -174,6 +192,102 @@ void player::Torso_Idle() {
 			animState( ANIMCHANNEL_TORSO, "Torso_Pain", 0 );
 		}
 	}
+}
+
+/***********************************************************************
+
+	KJ: Prone / crawl / dive - torso side.
+
+	Torso_Prone/Torso_Unprone are the one-handed grip transitions in/out.
+	Torso_Proned is the ONLY prone torso state that checks for fire input -
+	two-handed, stationary, matches Torso_Idle's fire routing. Torso_ProneCrawl
+	is one-handed and deliberately never checks fire input at all - per design,
+	the player must stop crawling (back to Torso_Proned) before they can shoot.
+	Torso_Dive is the dive-specific transition, timed by pm_divetime, and (like
+	Legs_Dive/Legs_Proned) doesn't care whether the player is grounded or still
+	mid-air when it finishes - that's what lets you shoot immediately after a
+	dive off a ledge, before you've even landed.
+
+	PLACEHOLDER ANIMATIONS: all reuse "idle" for now - see the equivalent note
+	on the Legs_ side above.
+
+***********************************************************************/
+
+void player::Torso_Prone() {
+	playAnim( ANIMCHANNEL_TORSO, "idle" );		// KJ: placeholder - should be "prone_down" (one-handed transition)
+
+	while( !animDone( ANIMCHANNEL_TORSO, 4 ) ) {
+		if ( !AI_PRONE ) {
+			animState( ANIMCHANNEL_TORSO, "Torso_Unprone", 4 );
+		}
+		waitFrame();
+	}
+
+	animState( ANIMCHANNEL_TORSO, "Torso_Proned", 4 );
+}
+
+void player::Torso_Proned() {
+	playCycle( ANIMCHANNEL_TORSO, "idle" );	// KJ: placeholder - should be "prone_idle" (two-handed)
+
+	eachFrame {
+		if ( !AI_PRONE ) {
+			animState( ANIMCHANNEL_TORSO, "Torso_Unprone", 4 );
+		}
+		if ( AI_FORWARD || AI_BACKWARD || AI_STRAFE_LEFT || AI_STRAFE_RIGHT ) {
+			animState( ANIMCHANNEL_TORSO, "Torso_ProneCrawl", 4 );
+		}
+		if ( AI_TELEPORT ) {
+			animState( ANIMCHANNEL_TORSO, "Torso_Teleport", 0 );
+		}
+		if ( AI_WEAPON_FIRED || weapon.WEAPON_START_FIRING ) {
+			animState( ANIMCHANNEL_TORSO, "Torso_Fire", 2 );
+		}
+		if ( AI_ATTACK_HELD && start_fire ) {
+			animState( ANIMCHANNEL_TORSO, "Torso_Fire_StartFire", 2 );
+		}
+		if ( AI_PAIN ) {
+			animState( ANIMCHANNEL_TORSO, "Torso_Pain", 0 );
+		}
+	}
+}
+
+void player::Torso_ProneCrawl() {
+	// KJ: one-handed rear-grip crawl. Deliberately no AI_WEAPON_FIRED/AI_ATTACK_HELD
+	// check anywhere in this function - firing requires stopping first (Torso_Proned).
+	playCycle( ANIMCHANNEL_TORSO, "idle" );	// KJ: placeholder - should be "prone_crawl" (one-handed)
+
+	eachFrame {
+		if ( !AI_PRONE ) {
+			animState( ANIMCHANNEL_TORSO, "Torso_Unprone", 4 );
+		}
+		if ( !AI_FORWARD && !AI_BACKWARD && !AI_STRAFE_LEFT && !AI_STRAFE_RIGHT ) {
+			animState( ANIMCHANNEL_TORSO, "Torso_Proned", 4 );
+		}
+	}
+}
+
+void player::Torso_Unprone() {
+	playAnim( ANIMCHANNEL_TORSO, "idle" );		// KJ: placeholder - should be "prone_up" (back to two-handed)
+
+	while( !animDone( ANIMCHANNEL_TORSO, 4 ) ) {
+		waitFrame();
+	}
+
+	animState( ANIMCHANNEL_TORSO, "Torso_Idle", 4 );
+}
+
+void player::Torso_Dive() {
+	// KJ: fixed 0.4s wait as a placeholder for pm_divetime (scripts can only read
+	// cvars as strings via sys.getcvar(), so this is hardcoded rather than wired to
+	// the cvar directly - keep this in sync with pm_divetime's default if that
+	// cvar's tuned differently, or revisit with a string->float conversion later).
+	// Once a real "dive_to_prone" torso anim exists, drive this off animDone()
+	// instead of a fixed wait, same as every other transition state here.
+	playAnim( ANIMCHANNEL_TORSO, "idle" );		// KJ: placeholder - should be a unique "prone_dive" (one-handed)
+
+	sys.wait( 0.4 );
+
+	animState( ANIMCHANNEL_TORSO, "Torso_Proned", 4 );
 }
 
 void player::Torso_Pain() {
@@ -361,7 +475,11 @@ void player::Legs_Idle() {
 		if ( AI_TURN_RIGHT ) {
 			animState( ANIMCHANNEL_LEGS, "Legs_Turn_Right", 4 );
 		}
-		if ( AI_CROUCH ) {
+		if ( AI_DIVE ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Dive", 4 );
+		} else if ( AI_PRONE ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Prone", 4 );
+		} else if ( AI_CROUCH ) {
 			animState( ANIMCHANNEL_LEGS, "Legs_Crouch", 4 );
 		}
 		if ( weapon_changed ) {
@@ -374,7 +492,9 @@ void player::Legs_Crouch() {
 	playAnim( ANIMCHANNEL_LEGS, "crouch_down" );
 
 	while( !animDone( ANIMCHANNEL_LEGS, 4 ) ) {
-		if ( !AI_CROUCH ) {
+		if ( AI_PRONE ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Prone", 4 );
+		} else if ( !AI_CROUCH ) {
 			animState( ANIMCHANNEL_LEGS, "Legs_Uncrouch", 4 );
 		}
 		waitFrame();
@@ -388,7 +508,9 @@ void player::Legs_Crouched() {
 	playCycle( ANIMCHANNEL_LEGS, "crouch" );
 
 	eachFrame {
-		if ( !AI_CROUCH ) {
+		if ( AI_PRONE ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Prone", 4 );
+		} else if ( !AI_CROUCH ) {
 			animState( ANIMCHANNEL_LEGS, "Legs_Uncrouch", 4 );
 		}
 		if ( AI_FORWARD ) {
@@ -423,6 +545,146 @@ void player::Legs_Uncrouch() {
 	}
 	
 	animState( ANIMCHANNEL_LEGS, "Legs_Idle", 4 );
+}
+
+/***********************************************************************
+
+	KJ: Prone / crawl / dive.
+
+	Mirrors the crouch chain above exactly - Legs_Prone/Legs_Unprone are the
+	down/up transitions, Legs_Proned is the stationary idle, Legs_ProneCrawl(_Backward)
+	are the moving states. Legs_Dive is the dolphin-dive variant that skips the
+	crouch tier entirely and drops straight into Legs_Proned.
+
+	PLACEHOLDER ANIMATIONS: none of the real prone/crawl/dive .md5anim clips
+	exist yet, so every playAnim/playCycle call below reuses the existing
+	crouch anim names as a stand-in. Swapping to the real animations later is
+	just changing the literal anim name string in each call - see the "anim"
+	declarations in player.def for where those names resolve to files.
+
+***********************************************************************/
+
+void player::Legs_Prone() {
+	playAnim( ANIMCHANNEL_LEGS, "crouch_down" );		// KJ: placeholder - should be "prone_down"
+
+	while( !animDone( ANIMCHANNEL_LEGS, 4 ) ) {
+		if ( !AI_PRONE ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Unprone", 4 );
+		}
+		waitFrame();
+	}
+	
+	animState( ANIMCHANNEL_LEGS, "Legs_Proned", 4 );
+}
+
+void player::Legs_Proned() {
+	weapon_changed = false;
+	playCycle( ANIMCHANNEL_LEGS, "crouch" );			// KJ: placeholder - should be "prone"
+
+	eachFrame {
+		if ( !AI_PRONE ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Unprone", 4 );
+		}
+		if ( AI_FORWARD ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl", 4 );
+		}
+		if ( AI_BACKWARD ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl_Backward", 4 );
+		}
+		if ( AI_STRAFE_LEFT ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl", 4 );
+		}
+		if ( AI_STRAFE_RIGHT ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl", 4 );
+		}
+		if ( AI_JUMP ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Jump", 4 );
+		}
+		if ( weapon_changed ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Proned", 4 );
+		}
+	}
+}
+
+void player::Legs_ProneCrawl() {
+	weapon_changed = false;
+	playCycle( ANIMCHANNEL_LEGS, "crouch_walk" );		// KJ: placeholder - should be "prone_crawl"
+
+	eachFrame {
+		if ( !AI_PRONE ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Unprone", 4 );
+		}
+		if ( AI_JUMP ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Jump", 4 );
+		}
+		// KJ: unlike Legs_Proned, this one DOES check ground contact - crawling off
+		// a ledge should visibly fall, whereas Proned deliberately doesn't check this
+		// since it needs to persist through an in-progress mid-air dive.
+		if ( !AI_ONGROUND ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Fall", 4 );
+		}
+		if ( AI_BACKWARD && !AI_FORWARD ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl_Backward", 4 );
+		}
+		if ( !AI_FORWARD && !AI_STRAFE_LEFT && !AI_STRAFE_RIGHT ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Proned", 4 );
+		}
+		if ( weapon_changed ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl", 4 );
+		}
+	}
+}
+
+void player::Legs_ProneCrawl_Backward() {
+	weapon_changed = false;
+	playCycle( ANIMCHANNEL_LEGS, "crouch_walk_backwards" );	// KJ: placeholder - should be "prone_crawl_backward"
+
+	eachFrame {
+		if ( !AI_PRONE ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Unprone", 4 );
+		}
+		if ( AI_JUMP ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Jump", 4 );
+		}
+		if ( !AI_ONGROUND ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Fall", 4 );
+		}
+		if ( AI_FORWARD && !AI_BACKWARD ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl", 4 );
+		}
+		if ( !AI_BACKWARD && !AI_STRAFE_LEFT && !AI_STRAFE_RIGHT ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Proned", 4 );
+		}
+		if ( weapon_changed ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl", 4 );
+		}
+	}
+}
+
+void player::Legs_Unprone() {
+	playAnim( ANIMCHANNEL_LEGS, "crouch_up" );			// KJ: placeholder - should be "prone_up"
+
+	while( !animDone( ANIMCHANNEL_LEGS, 4 ) ) {
+		waitFrame();
+	}
+	
+	animState( ANIMCHANNEL_LEGS, "Legs_Crouched", 4 );
+}
+
+void player::Legs_Dive() {
+	// KJ: skips the crouch tier entirely - lands straight in Legs_Proned. Works
+	// identically whether triggered grounded or airborne (see CheckDuck()'s dive
+	// branch), since nothing here checks AI_ONGROUND.
+	playAnim( ANIMCHANNEL_LEGS, "crouch_down" );		// KJ: placeholder - should be a unique "dive_to_prone"
+
+	while( !animDone( ANIMCHANNEL_LEGS, 4 ) ) {
+		if ( !AI_PRONE ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Unprone", 4 );
+		}
+		waitFrame();
+	}
+	
+	animState( ANIMCHANNEL_LEGS, "Legs_Proned", 4 );
 }
 
 void player::Legs_Turn_Left() {
@@ -536,6 +798,7 @@ void player::Legs_Run_Forward() {
 	playCycle( ANIMCHANNEL_LEGS, "run_forward" );
 	
 	eachFrame {
+		if ( AI_DIVE )						{ animState( ANIMCHANNEL_LEGS, "Legs_Dive", 4 ); }
 		if ( AI_JUMP )						{ animState( ANIMCHANNEL_LEGS, "Legs_Jump", 8 ); }
 		if ( !AI_ONGROUND )					{ animState( ANIMCHANNEL_LEGS, "Legs_Fall", 8 ); }
 		if ( !AI_RUN )						{ Legs_Walk(); }
@@ -548,6 +811,7 @@ void player::Legs_Run_Backward() {
 	playCycle( ANIMCHANNEL_LEGS, "run_backwards" );
 	
 	eachFrame {
+		if ( AI_DIVE )						{ animState( ANIMCHANNEL_LEGS, "Legs_Dive", 4 ); }
 		if ( AI_JUMP )						{ animState( ANIMCHANNEL_LEGS, "Legs_Jump", 8 ); }
 		if ( !AI_ONGROUND )					{ animState( ANIMCHANNEL_LEGS, "Legs_Fall", 8 ); }
 		if ( !AI_RUN )						{ Legs_Walk(); }
@@ -561,6 +825,7 @@ void player::Legs_Run_Left() {
 	playCycle( ANIMCHANNEL_LEGS, "run_strafe_left" );
 	
 	eachFrame {
+		if ( AI_DIVE )								{ animState( ANIMCHANNEL_LEGS, "Legs_Dive", 4 ); }
 		if ( AI_JUMP )								{ animState( ANIMCHANNEL_LEGS, "Legs_Jump", 8 ); }
 		if ( !AI_ONGROUND )							{ animState( ANIMCHANNEL_LEGS, "Legs_Fall", 8 ); }
 		if ( !AI_RUN )								{ Legs_Walk(); }
@@ -576,6 +841,7 @@ void player::Legs_Run_Right() {
 	playCycle( ANIMCHANNEL_LEGS, "run_strafe_right" );
 	
 	eachFrame {
+		if ( AI_DIVE )								{ animState( ANIMCHANNEL_LEGS, "Legs_Dive", 4 ); }
 		if ( AI_JUMP )								{ animState( ANIMCHANNEL_LEGS, "Legs_Jump", 8 ); }
 		if ( !AI_ONGROUND )							{ animState( ANIMCHANNEL_LEGS, "Legs_Fall", 8 ); }
 		if ( !AI_RUN )								{ Legs_Walk(); }
@@ -623,6 +889,9 @@ void player::Legs_Jump() {
 	}
 
 	while( !animDone( ANIMCHANNEL_LEGS, 4 ) ) {
+		if ( AI_DIVE ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Dive", 4 );
+		}
 		if ( AI_JUMP ) {
 			animState( ANIMCHANNEL_LEGS, "Legs_Jump", 4 );
 		}
@@ -646,6 +915,13 @@ void player::Legs_Fall() {
 	playCycle( ANIMCHANNEL_LEGS, "fall" );
 
 	eachFrame {
+		// KJ: this is the main path a real "dive off a ledge" takes - AI_DIVE fires
+		// while genuinely airborne here, well after the initial jump-off pulse has
+		// already cleared. Legs_Proned deliberately doesn't check ground contact,
+		// so it persists correctly through the rest of the fall.
+		if ( AI_DIVE ) {
+			animState( ANIMCHANNEL_LEGS, "Legs_Dive", 2 );
+		}
 		if ( AI_JUMP ) {
 			animState( ANIMCHANNEL_LEGS, "Legs_Jump", 2 );
 		}

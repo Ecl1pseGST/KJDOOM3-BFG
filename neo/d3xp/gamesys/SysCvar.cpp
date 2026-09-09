@@ -270,6 +270,15 @@ idCVar pm_normalviewheight(			"pm_normalviewheight",		"68",			CVAR_GAME | CVAR_N
 idCVar pm_deadheight(				"pm_deadheight",			"20",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "height of player's bounding box while dead" );
 idCVar pm_deadviewheight(			"pm_deadviewheight",		"10",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "height of player's view while dead" );
 idCVar pm_crouchrate(				"pm_crouchrate",			"0.87",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "time it takes for player's view to change from standing to crouching" );
+// KJ: prone/crawl/dive. Same shape as the crouch cvars above - see idPhysics_Player::CheckDuck().
+idCVar pm_proneheight(				"pm_proneheight",			"20",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "height of player's bounding box while prone" );
+idCVar pm_proneviewheight(			"pm_proneviewheight",		"16",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "height of player's view while prone" );
+idCVar pm_pronerate(				"pm_pronerate",				"0.87",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "time it takes for player's view to change from crouching to prone" );
+idCVar pm_crawlspeed(				"pm_crawlspeed",			"60",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "movement speed while prone/crawling" );
+idCVar pm_diveimpulse(				"pm_diveimpulse",			"140",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "forward velocity applied when dolphin-diving into prone" );
+idCVar pm_divetime(				"pm_divetime",				"0.4",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "seconds the dive-to-prone torso transition takes before the weapon becomes fire-eligible again" );
+idCVar pm_diveholdtime(			"pm_diveholdtime",			"0.15",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "seconds BUTTON_CROUCH must be held while sprinting before the dive triggers - shorter than this just crouches instead" );
+idCVar pm_divegraceperiod(			"pm_divegraceperiod",		"0.5",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "seconds after sprinting last read true that a dive can still trigger - covers jumps, which can legitimately lapse isSprinting mid-air for several frames" );
 idCVar pm_bboxwidth(				"pm_bboxwidth",				"32",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "x/y size of player's bounding box" );
 idCVar pm_crouchbob(				"pm_crouchbob",				"0.5",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "bob much faster when crouched" );
 idCVar pm_walkbob(					"pm_walkbob",				"0.3",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "bob slowly when walking" );

@@ -64,6 +64,9 @@ const int PMF_TIME_LAND			= 32;		// movementTime is time before rejump
 const int PMF_TIME_KNOCKBACK	= 64;		// movementTime is an air-accelerate only time
 const int PMF_TIME_WATERJUMP	= 128;		// movementTime is waterjump
 const int PMF_ALL_TIMES			= ( PMF_TIME_WATERJUMP | PMF_TIME_LAND | PMF_TIME_KNOCKBACK );
+// KJ: prone/dive
+const int PMF_PRONE				= 256;		// set when prone (always accompanied by PMF_DUCKED)
+const int PMF_DIVED				= 512;		// set on the physics frame a dolphin dive triggered - one-shot pulse, mirrors PMF_JUMPED
 
 int c_pmove = 0;
 
@@ -1198,6 +1201,16 @@ void idPhysics_Player::CheckGround()
 idPhysics_Player::CheckDuck
 
 Sets clip model size
+
+KJ: now a 3-tier stance ladder (stand/crouch/prone) driven by a single button,
+edge-triggered ping-pong: each press of BUTTON_CROUCH advances one step in
+whichever direction it was last headed (stand->crouch->prone), then reverses
+at either end (prone->crouch->stand->crouch->prone->...). See stanceDescending.
+
+Also handles the dolphin dive (holding BUTTON_CROUCH while wantSprinting is
+true skips straight to prone from any stance, grounded or airborne - see
+PMF_DIVED) and jump-cancel (pressing BUTTON_JUMP while crouched/prone snaps
+straight back toward standing, same as classic CoD).
 ==============
 */
 void idPhysics_Player::CheckDuck()
@@ -1213,28 +1226,133 @@ void idPhysics_Player::CheckDuck()
 	}
 	else
 	{
-		// stand up when up against a ladder
-		if( ( command.buttons & BUTTON_CROUCH ) && !ladder )
+		bool buttonCrouchDown = ( ( command.buttons & BUTTON_CROUCH ) != 0 );
+		bool crouchPressed = buttonCrouchDown && !oldButtonCrouch;		// KJ: rising edge
+		bool crouchReleased = !buttonCrouchDown && oldButtonCrouch;	// KJ: falling edge
+		oldButtonCrouch = buttonCrouchDown;								// KJ
+
+		bool triggerCycle = false;		// KJ: set below when an ordinary (non-dive) press should run the stand/crouch/prone cycle
+
+		// stand up when up against a ladder, regardless of stance input
+		if( ladder )
 		{
-			// duck
-			current.movementFlags |= PMF_DUCKED;
+			current.movementFlags &= ~( PMF_DUCKED | PMF_PRONE );			// KJ: also clears prone
+			stanceDescending = true;										// KJ
+			diveArmed = false;												// KJ: cancel any pending dive-hold too
 		}
 		else
 		{
-			// stand up if possible
-			if( current.movementFlags & PMF_DUCKED )
+			// KJ: dive arming. A press while wantSprinting starts the hold timer
+			// instead of doing anything immediately - only crossing pm_diveholdtime
+			// actually fires the dive. Releasing before that threshold falls through
+			// to an ordinary quick crouch-press instead (see crouchReleased below).
+			if( crouchPressed && wantSprinting && !( current.movementFlags & PMF_PRONE ) )
 			{
-				// try to stand up
-				end = current.origin - ( pm_normalheight.GetFloat() - pm_crouchheight.GetFloat() ) * gravityNormal;
+				diveArmed = true;
+				diveHoldTime = 0.0f;
+			}
+
+			if( diveArmed && buttonCrouchDown )
+			{
+				diveHoldTime += frametime;
+				if( diveHoldTime >= pm_diveholdtime.GetFloat() )
+				{
+					// KJ: dolphin dive - works identically whether grounded or airborne
+					// (e.g. off a jump), since wantSprinting's grace window carries no
+					// ground-state requirement of its own.
+					current.movementFlags |= ( PMF_DUCKED | PMF_PRONE | PMF_DIVED );
+					stanceDescending = true;		// next press should climb back up to crouch
+					current.velocity += pm_diveimpulse.GetFloat() * viewForward;
+					diveArmed = false;
+				}
+			}
+			else if( diveArmed && crouchReleased )
+			{
+				// KJ: released before reaching the hold threshold - just a quick tap
+				diveArmed = false;
+				triggerCycle = true;
+			}
+
+			if( ( command.buttons & BUTTON_JUMP ) && ( current.movementFlags & ( PMF_DUCKED | PMF_PRONE ) ) )
+			{
+				// KJ: jump cancels crouch/prone straight back toward standing
+				end = current.origin - ( pm_normalheight.GetFloat() - pm_proneheight.GetFloat() ) * gravityNormal;
 				gameLocal.clip.Translation( trace, current.origin, end, clipModel, clipModel->GetAxis(), clipMask, self );
 				if( trace.fraction >= 1.0f )
 				{
-					current.movementFlags &= ~PMF_DUCKED;
+					// room to go all the way to standing
+					current.movementFlags &= ~( PMF_DUCKED | PMF_PRONE );
+				}
+				else
+				{
+					// blocked from full standing - settle for crouch instead
+					current.movementFlags &= ~PMF_PRONE;
+				}
+				stanceDescending = true;
+				diveArmed = false;		// KJ
+			}
+			else if( crouchPressed && !diveArmed )
+			{
+				// KJ: !diveArmed - a press that just got armed for a potential dive
+				// above doesn't also trigger the cycle here; it either fires the dive
+				// or falls through to triggerCycle on release instead.
+				triggerCycle = true;
+			}
+
+			if( triggerCycle )
+			{
+				if( stanceDescending )
+				{
+					if( !( current.movementFlags & PMF_DUCKED ) )
+					{
+						// stand -> crouch
+						current.movementFlags |= PMF_DUCKED;
+					}
+					else if( !( current.movementFlags & PMF_PRONE ) )
+					{
+						// crouch -> prone
+						current.movementFlags |= PMF_PRONE;
+					}
+					else
+					{
+						// already at the bottom - reverse and step back up
+						stanceDescending = false;
+						current.movementFlags &= ~PMF_PRONE;
+					}
+				}
+				else
+				{
+					if( current.movementFlags & PMF_PRONE )
+					{
+						// prone -> crouch
+						current.movementFlags &= ~PMF_PRONE;
+					}
+					else if( current.movementFlags & PMF_DUCKED )
+					{
+						// crouch -> stand, only if there's room
+						end = current.origin - ( pm_normalheight.GetFloat() - pm_crouchheight.GetFloat() ) * gravityNormal;
+						gameLocal.clip.Translation( trace, current.origin, end, clipModel, clipModel->GetAxis(), clipMask, self );
+						if( trace.fraction >= 1.0f )
+						{
+							current.movementFlags &= ~PMF_DUCKED;
+						}
+					}
+					else
+					{
+						// already at the top - reverse and step back down
+						stanceDescending = true;
+						current.movementFlags |= PMF_DUCKED;
+					}
 				}
 			}
 		}
 
-		if( current.movementFlags & PMF_DUCKED )
+		if( current.movementFlags & PMF_PRONE )
+		{
+			playerSpeed = crawlSpeed;
+			maxZ = pm_proneheight.GetFloat();
+		}
+		else if( current.movementFlags & PMF_DUCKED )
 		{
 			playerSpeed = crouchSpeed;
 			maxZ = pm_crouchheight.GetFloat();
@@ -1462,7 +1580,7 @@ void idPhysics_Player::MovePlayer( int msec )
 	playerSpeed = walkSpeed;
 
 	// remove jumped and stepped up flag
-	current.movementFlags &= ~( PMF_JUMPED | PMF_STEPPED_UP | PMF_STEPPED_DOWN );
+	current.movementFlags &= ~( PMF_JUMPED | PMF_STEPPED_UP | PMF_STEPPED_DOWN | PMF_DIVED );	// KJ: added PMF_DIVED
 	current.stepUp = 0.0f;
 
 	if( ( command.buttons & BUTTON_JUMP ) == 0 )
@@ -1607,6 +1725,30 @@ bool idPhysics_Player::IsCrouching() const
 
 /*
 ================
+idPhysics_Player::IsProne
+
+KJ: always accompanied by IsCrouching() also being true - see CheckDuck().
+================
+*/
+bool idPhysics_Player::IsProne() const
+{
+	return ( ( current.movementFlags & PMF_PRONE ) != 0 );
+}
+
+/*
+================
+idPhysics_Player::HasDived
+
+KJ: one-shot pulse, mirrors HasJumped()/PMF_JUMPED.
+================
+*/
+bool idPhysics_Player::HasDived() const
+{
+	return ( ( current.movementFlags & PMF_DIVED ) != 0 );
+}
+
+/*
+================
 idPhysics_Player::OnLadder
 ================
 */
@@ -1629,6 +1771,12 @@ idPhysics_Player::idPhysics_Player()
 	saved = current;
 	walkSpeed = 0;
 	crouchSpeed = 0;
+	crawlSpeed = 0;				// KJ
+	oldButtonCrouch = false;		// KJ
+	stanceDescending = true;		// KJ: first press from standing should go deeper (to crouch)
+	wantSprinting = false;			// KJ
+	diveArmed = false;				// KJ
+	diveHoldTime = 0.0f;			// KJ
 	maxStepHeight = 0;
 	maxJumpHeight = 0;
 	memset( &command, 0, sizeof( command ) );
@@ -1695,6 +1843,8 @@ void idPhysics_Player::Save( idSaveGame* savefile ) const
 
 	savefile->WriteFloat( walkSpeed );
 	savefile->WriteFloat( crouchSpeed );
+	savefile->WriteFloat( crawlSpeed );			// KJ
+	savefile->WriteBool( stanceDescending );		// KJ
 	savefile->WriteFloat( maxStepHeight );
 	savefile->WriteFloat( maxJumpHeight );
 	savefile->WriteInt( debugLevel );
@@ -1733,6 +1883,12 @@ void idPhysics_Player::Restore( idRestoreGame* savefile )
 
 	savefile->ReadFloat( walkSpeed );
 	savefile->ReadFloat( crouchSpeed );
+	savefile->ReadFloat( crawlSpeed );				// KJ
+	savefile->ReadBool( stanceDescending );		// KJ
+	oldButtonCrouch = false;						// KJ: transient input mirror, don't carry a stale edge across a load
+	wantSprinting = false;							// KJ: same
+	diveArmed = false;								// KJ: same
+	diveHoldTime = 0.0f;							// KJ: same
 	savefile->ReadFloat( maxStepHeight );
 	savefile->ReadFloat( maxJumpHeight );
 	savefile->ReadInt( debugLevel );
@@ -1774,10 +1930,25 @@ void idPhysics_Player::SetPlayerInput( const usercmd_t& cmd, const idVec3& forwa
 idPhysics_Player::SetSpeed
 ================
 */
-void idPhysics_Player::SetSpeed( const float newWalkSpeed, const float newCrouchSpeed )
+void idPhysics_Player::SetSpeed( const float newWalkSpeed, const float newCrouchSpeed, const float newCrawlSpeed )
 {
 	walkSpeed = newWalkSpeed;
 	crouchSpeed = newCrouchSpeed;
+	crawlSpeed = newCrawlSpeed;		// KJ
+}
+
+/*
+================
+idPhysics_Player::SetSprinting
+
+KJ: purely so CheckDuck() can detect the dive-to-prone trigger condition
+(isSprinting && crouch pressed). Doesn't feed movement speed at all - that's
+still entirely SetSpeed()'s job.
+================
+*/
+void idPhysics_Player::SetSprinting( const bool sprinting )
+{
+	wantSprinting = sprinting;
 }
 
 /*

@@ -1,0 +1,959 @@
+diff --git a/base/script/ai_base.script b/base/script/ai_base.script
+index 449b612..aa93a9f 100644
+--- a/base/script/ai_base.script
++++ b/base/script/ai_base.script
+@@ -79,6 +79,8 @@ object player_base {
+ 	boolean		AI_JUMP;
+ 	boolean		AI_DEAD;
+ 	boolean		AI_CROUCH;
++	boolean		AI_PRONE;		// KJ
++	boolean		AI_DIVE;		// KJ
+ 	boolean		AI_ONGROUND;
+ 	boolean		AI_ONLADDER;
+ 	boolean		AI_RUN;
+diff --git a/base/script/ai_player.script b/base/script/ai_player.script
+index 68e2bf6..0a58386 100644
+--- a/base/script/ai_player.script
++++ b/base/script/ai_player.script
+@@ -31,12 +31,25 @@ object player : player_base {
+ 	void		Torso_Fire_Aim();
+ 	void		Torso_RaiseWeapon();
+ 	void		Torso_LowerWeapon();
++				// KJ: prone/crawl/dive - one-handed rear-grip hold, synced with the Legs_ equivalents
++	void		Torso_Prone();
++	void		Torso_Proned();
++	void		Torso_ProneCrawl();
++	void		Torso_Unprone();
++	void		Torso_Dive();
+ 	
+ 				// leg anims
+ 	void		Legs_Death();
+ 	void		Legs_Idle();
+ 	void		Legs_Crouched();
+ 	void		Legs_Uncrouch();
++				// KJ: prone/crawl/dive
++	void		Legs_Prone();
++	void		Legs_Proned();
++	void		Legs_ProneCrawl();
++	void		Legs_ProneCrawl_Backward();
++	void		Legs_Unprone();
++	void		Legs_Dive();
+ 	void		Legs_Turn_Left();
+ 	void		Legs_Turn_Right();
+ 	void		Legs_Walk();
+@@ -161,6 +174,68 @@ void player::Torso_Idle() {
+ 	playCycle( ANIMCHANNEL_TORSO, "idle" );
+ 
+ 	eachFrame {
++		if ( AI_DIVE ) {
++			animState( ANIMCHANNEL_TORSO, "Torso_Dive", 4 );
++		} else if ( AI_PRONE ) {
++			animState( ANIMCHANNEL_TORSO, "Torso_Prone", 4 );
++		}
++		if ( AI_TELEPORT ) {
++			animState( ANIMCHANNEL_TORSO, "Torso_Teleport", 0 );
++		}
++		if ( AI_WEAPON_FIRED || weapon.WEAPON_START_FIRING ) {
++			animState( ANIMCHANNEL_TORSO, "Torso_Fire", 2 );
++		}
++		if ( AI_ATTACK_HELD && start_fire ) {
++			animState( ANIMCHANNEL_TORSO, "Torso_Fire_StartFire", 2 );
++		}
++		if ( AI_PAIN ) {
++			animState( ANIMCHANNEL_TORSO, "Torso_Pain", 0 );
++		}
++	}
++}
++
++/***********************************************************************
++
++	KJ: Prone / crawl / dive - torso side.
++
++	Torso_Prone/Torso_Unprone are the one-handed grip transitions in/out.
++	Torso_Proned is the ONLY prone torso state that checks for fire input -
++	two-handed, stationary, matches Torso_Idle's fire routing. Torso_ProneCrawl
++	is one-handed and deliberately never checks fire input at all - per design,
++	the player must stop crawling (back to Torso_Proned) before they can shoot.
++	Torso_Dive is the dive-specific transition, timed by pm_divetime, and (like
++	Legs_Dive/Legs_Proned) doesn't care whether the player is grounded or still
++	mid-air when it finishes - that's what lets you shoot immediately after a
++	dive off a ledge, before you've even landed.
++
++	PLACEHOLDER ANIMATIONS: all reuse "idle" for now - see the equivalent note
++	on the Legs_ side above.
++
++***********************************************************************/
++
++void player::Torso_Prone() {
++	playAnim( ANIMCHANNEL_TORSO, "idle" );		// KJ: placeholder - should be "prone_down" (one-handed transition)
++
++	while( !animDone( ANIMCHANNEL_TORSO, 4 ) ) {
++		if ( !AI_PRONE ) {
++			animState( ANIMCHANNEL_TORSO, "Torso_Unprone", 4 );
++		}
++		waitFrame();
++	}
++
++	animState( ANIMCHANNEL_TORSO, "Torso_Proned", 4 );
++}
++
++void player::Torso_Proned() {
++	playCycle( ANIMCHANNEL_TORSO, "idle" );	// KJ: placeholder - should be "prone_idle" (two-handed)
++
++	eachFrame {
++		if ( !AI_PRONE ) {
++			animState( ANIMCHANNEL_TORSO, "Torso_Unprone", 4 );
++		}
++		if ( AI_FORWARD || AI_BACKWARD || AI_STRAFE_LEFT || AI_STRAFE_RIGHT ) {
++			animState( ANIMCHANNEL_TORSO, "Torso_ProneCrawl", 4 );
++		}
+ 		if ( AI_TELEPORT ) {
+ 			animState( ANIMCHANNEL_TORSO, "Torso_Teleport", 0 );
+ 		}
+@@ -176,6 +251,45 @@ void player::Torso_Idle() {
+ 	}
+ }
+ 
++void player::Torso_ProneCrawl() {
++	// KJ: one-handed rear-grip crawl. Deliberately no AI_WEAPON_FIRED/AI_ATTACK_HELD
++	// check anywhere in this function - firing requires stopping first (Torso_Proned).
++	playCycle( ANIMCHANNEL_TORSO, "idle" );	// KJ: placeholder - should be "prone_crawl" (one-handed)
++
++	eachFrame {
++		if ( !AI_PRONE ) {
++			animState( ANIMCHANNEL_TORSO, "Torso_Unprone", 4 );
++		}
++		if ( !AI_FORWARD && !AI_BACKWARD && !AI_STRAFE_LEFT && !AI_STRAFE_RIGHT ) {
++			animState( ANIMCHANNEL_TORSO, "Torso_Proned", 4 );
++		}
++	}
++}
++
++void player::Torso_Unprone() {
++	playAnim( ANIMCHANNEL_TORSO, "idle" );		// KJ: placeholder - should be "prone_up" (back to two-handed)
++
++	while( !animDone( ANIMCHANNEL_TORSO, 4 ) ) {
++		waitFrame();
++	}
++
++	animState( ANIMCHANNEL_TORSO, "Torso_Idle", 4 );
++}
++
++void player::Torso_Dive() {
++	// KJ: fixed 0.4s wait as a placeholder for pm_divetime (scripts can only read
++	// cvars as strings via sys.getcvar(), so this is hardcoded rather than wired to
++	// the cvar directly - keep this in sync with pm_divetime's default if that
++	// cvar's tuned differently, or revisit with a string->float conversion later).
++	// Once a real "dive_to_prone" torso anim exists, drive this off animDone()
++	// instead of a fixed wait, same as every other transition state here.
++	playAnim( ANIMCHANNEL_TORSO, "idle" );		// KJ: placeholder - should be a unique "prone_dive" (one-handed)
++
++	sys.wait( 0.4 );
++
++	animState( ANIMCHANNEL_TORSO, "Torso_Proned", 4 );
++}
++
+ void player::Torso_Pain() {
+ 	string animname;
+ 	float nextpain;
+@@ -361,7 +475,11 @@ void player::Legs_Idle() {
+ 		if ( AI_TURN_RIGHT ) {
+ 			animState( ANIMCHANNEL_LEGS, "Legs_Turn_Right", 4 );
+ 		}
+-		if ( AI_CROUCH ) {
++		if ( AI_DIVE ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Dive", 4 );
++		} else if ( AI_PRONE ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Prone", 4 );
++		} else if ( AI_CROUCH ) {
+ 			animState( ANIMCHANNEL_LEGS, "Legs_Crouch", 4 );
+ 		}
+ 		if ( weapon_changed ) {
+@@ -374,7 +492,9 @@ void player::Legs_Crouch() {
+ 	playAnim( ANIMCHANNEL_LEGS, "crouch_down" );
+ 
+ 	while( !animDone( ANIMCHANNEL_LEGS, 4 ) ) {
+-		if ( !AI_CROUCH ) {
++		if ( AI_PRONE ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Prone", 4 );
++		} else if ( !AI_CROUCH ) {
+ 			animState( ANIMCHANNEL_LEGS, "Legs_Uncrouch", 4 );
+ 		}
+ 		waitFrame();
+@@ -388,7 +508,9 @@ void player::Legs_Crouched() {
+ 	playCycle( ANIMCHANNEL_LEGS, "crouch" );
+ 
+ 	eachFrame {
+-		if ( !AI_CROUCH ) {
++		if ( AI_PRONE ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Prone", 4 );
++		} else if ( !AI_CROUCH ) {
+ 			animState( ANIMCHANNEL_LEGS, "Legs_Uncrouch", 4 );
+ 		}
+ 		if ( AI_FORWARD ) {
+@@ -425,6 +547,146 @@ void player::Legs_Uncrouch() {
+ 	animState( ANIMCHANNEL_LEGS, "Legs_Idle", 4 );
+ }
+ 
++/***********************************************************************
++
++	KJ: Prone / crawl / dive.
++
++	Mirrors the crouch chain above exactly - Legs_Prone/Legs_Unprone are the
++	down/up transitions, Legs_Proned is the stationary idle, Legs_ProneCrawl(_Backward)
++	are the moving states. Legs_Dive is the dolphin-dive variant that skips the
++	crouch tier entirely and drops straight into Legs_Proned.
++
++	PLACEHOLDER ANIMATIONS: none of the real prone/crawl/dive .md5anim clips
++	exist yet, so every playAnim/playCycle call below reuses the existing
++	crouch anim names as a stand-in. Swapping to the real animations later is
++	just changing the literal anim name string in each call - see the "anim"
++	declarations in player.def for where those names resolve to files.
++
++***********************************************************************/
++
++void player::Legs_Prone() {
++	playAnim( ANIMCHANNEL_LEGS, "crouch_down" );		// KJ: placeholder - should be "prone_down"
++
++	while( !animDone( ANIMCHANNEL_LEGS, 4 ) ) {
++		if ( !AI_PRONE ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Unprone", 4 );
++		}
++		waitFrame();
++	}
++	
++	animState( ANIMCHANNEL_LEGS, "Legs_Proned", 4 );
++}
++
++void player::Legs_Proned() {
++	weapon_changed = false;
++	playCycle( ANIMCHANNEL_LEGS, "crouch" );			// KJ: placeholder - should be "prone"
++
++	eachFrame {
++		if ( !AI_PRONE ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Unprone", 4 );
++		}
++		if ( AI_FORWARD ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl", 4 );
++		}
++		if ( AI_BACKWARD ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl_Backward", 4 );
++		}
++		if ( AI_STRAFE_LEFT ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl", 4 );
++		}
++		if ( AI_STRAFE_RIGHT ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl", 4 );
++		}
++		if ( AI_JUMP ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Jump", 4 );
++		}
++		if ( weapon_changed ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Proned", 4 );
++		}
++	}
++}
++
++void player::Legs_ProneCrawl() {
++	weapon_changed = false;
++	playCycle( ANIMCHANNEL_LEGS, "crouch_walk" );		// KJ: placeholder - should be "prone_crawl"
++
++	eachFrame {
++		if ( !AI_PRONE ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Unprone", 4 );
++		}
++		if ( AI_JUMP ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Jump", 4 );
++		}
++		// KJ: unlike Legs_Proned, this one DOES check ground contact - crawling off
++		// a ledge should visibly fall, whereas Proned deliberately doesn't check this
++		// since it needs to persist through an in-progress mid-air dive.
++		if ( !AI_ONGROUND ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Fall", 4 );
++		}
++		if ( AI_BACKWARD && !AI_FORWARD ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl_Backward", 4 );
++		}
++		if ( !AI_FORWARD && !AI_STRAFE_LEFT && !AI_STRAFE_RIGHT ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Proned", 4 );
++		}
++		if ( weapon_changed ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl", 4 );
++		}
++	}
++}
++
++void player::Legs_ProneCrawl_Backward() {
++	weapon_changed = false;
++	playCycle( ANIMCHANNEL_LEGS, "crouch_walk_backwards" );	// KJ: placeholder - should be "prone_crawl_backward"
++
++	eachFrame {
++		if ( !AI_PRONE ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Unprone", 4 );
++		}
++		if ( AI_JUMP ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Jump", 4 );
++		}
++		if ( !AI_ONGROUND ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Fall", 4 );
++		}
++		if ( AI_FORWARD && !AI_BACKWARD ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl", 4 );
++		}
++		if ( !AI_BACKWARD && !AI_STRAFE_LEFT && !AI_STRAFE_RIGHT ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Proned", 4 );
++		}
++		if ( weapon_changed ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_ProneCrawl", 4 );
++		}
++	}
++}
++
++void player::Legs_Unprone() {
++	playAnim( ANIMCHANNEL_LEGS, "crouch_up" );			// KJ: placeholder - should be "prone_up"
++
++	while( !animDone( ANIMCHANNEL_LEGS, 4 ) ) {
++		waitFrame();
++	}
++	
++	animState( ANIMCHANNEL_LEGS, "Legs_Crouched", 4 );
++}
++
++void player::Legs_Dive() {
++	// KJ: skips the crouch tier entirely - lands straight in Legs_Proned. Works
++	// identically whether triggered grounded or airborne (see CheckDuck()'s dive
++	// branch), since nothing here checks AI_ONGROUND.
++	playAnim( ANIMCHANNEL_LEGS, "crouch_down" );		// KJ: placeholder - should be a unique "dive_to_prone"
++
++	while( !animDone( ANIMCHANNEL_LEGS, 4 ) ) {
++		if ( !AI_PRONE ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Unprone", 4 );
++		}
++		waitFrame();
++	}
++	
++	animState( ANIMCHANNEL_LEGS, "Legs_Proned", 4 );
++}
++
+ void player::Legs_Turn_Left() {
+ 	playAnim( ANIMCHANNEL_LEGS, "turn_left" );
+ 	
+@@ -536,6 +798,7 @@ void player::Legs_Run_Forward() {
+ 	playCycle( ANIMCHANNEL_LEGS, "run_forward" );
+ 	
+ 	eachFrame {
++		if ( AI_DIVE )						{ animState( ANIMCHANNEL_LEGS, "Legs_Dive", 4 ); }
+ 		if ( AI_JUMP )						{ animState( ANIMCHANNEL_LEGS, "Legs_Jump", 8 ); }
+ 		if ( !AI_ONGROUND )					{ animState( ANIMCHANNEL_LEGS, "Legs_Fall", 8 ); }
+ 		if ( !AI_RUN )						{ Legs_Walk(); }
+@@ -548,6 +811,7 @@ void player::Legs_Run_Backward() {
+ 	playCycle( ANIMCHANNEL_LEGS, "run_backwards" );
+ 	
+ 	eachFrame {
++		if ( AI_DIVE )						{ animState( ANIMCHANNEL_LEGS, "Legs_Dive", 4 ); }
+ 		if ( AI_JUMP )						{ animState( ANIMCHANNEL_LEGS, "Legs_Jump", 8 ); }
+ 		if ( !AI_ONGROUND )					{ animState( ANIMCHANNEL_LEGS, "Legs_Fall", 8 ); }
+ 		if ( !AI_RUN )						{ Legs_Walk(); }
+@@ -561,6 +825,7 @@ void player::Legs_Run_Left() {
+ 	playCycle( ANIMCHANNEL_LEGS, "run_strafe_left" );
+ 	
+ 	eachFrame {
++		if ( AI_DIVE )								{ animState( ANIMCHANNEL_LEGS, "Legs_Dive", 4 ); }
+ 		if ( AI_JUMP )								{ animState( ANIMCHANNEL_LEGS, "Legs_Jump", 8 ); }
+ 		if ( !AI_ONGROUND )							{ animState( ANIMCHANNEL_LEGS, "Legs_Fall", 8 ); }
+ 		if ( !AI_RUN )								{ Legs_Walk(); }
+@@ -576,6 +841,7 @@ void player::Legs_Run_Right() {
+ 	playCycle( ANIMCHANNEL_LEGS, "run_strafe_right" );
+ 	
+ 	eachFrame {
++		if ( AI_DIVE )								{ animState( ANIMCHANNEL_LEGS, "Legs_Dive", 4 ); }
+ 		if ( AI_JUMP )								{ animState( ANIMCHANNEL_LEGS, "Legs_Jump", 8 ); }
+ 		if ( !AI_ONGROUND )							{ animState( ANIMCHANNEL_LEGS, "Legs_Fall", 8 ); }
+ 		if ( !AI_RUN )								{ Legs_Walk(); }
+@@ -623,6 +889,9 @@ void player::Legs_Jump() {
+ 	}
+ 
+ 	while( !animDone( ANIMCHANNEL_LEGS, 4 ) ) {
++		if ( AI_DIVE ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Dive", 4 );
++		}
+ 		if ( AI_JUMP ) {
+ 			animState( ANIMCHANNEL_LEGS, "Legs_Jump", 4 );
+ 		}
+@@ -646,6 +915,13 @@ void player::Legs_Fall() {
+ 	playCycle( ANIMCHANNEL_LEGS, "fall" );
+ 
+ 	eachFrame {
++		// KJ: this is the main path a real "dive off a ledge" takes - AI_DIVE fires
++		// while genuinely airborne here, well after the initial jump-off pulse has
++		// already cleared. Legs_Proned deliberately doesn't check ground contact,
++		// so it persists correctly through the rest of the fall.
++		if ( AI_DIVE ) {
++			animState( ANIMCHANNEL_LEGS, "Legs_Dive", 2 );
++		}
+ 		if ( AI_JUMP ) {
+ 			animState( ANIMCHANNEL_LEGS, "Legs_Jump", 2 );
+ 		}
+diff --git a/neo/d3xp/Player.cpp b/neo/d3xp/Player.cpp
+index 9a6d281..904fbf4 100644
+--- a/neo/d3xp/Player.cpp
++++ b/neo/d3xp/Player.cpp
+@@ -1696,6 +1696,8 @@ void idPlayer::LinkScriptVariables()
+ 	AI_JUMP.LinkTo(	scriptObject, "AI_JUMP" );
+ 	AI_DEAD.LinkTo(	scriptObject, "AI_DEAD" );
+ 	AI_CROUCH.LinkTo(	scriptObject, "AI_CROUCH" );
++	AI_PRONE.LinkTo(	scriptObject, "AI_PRONE" );		// KJ
++	AI_DIVE.LinkTo(	scriptObject, "AI_DIVE" );			// KJ
+ 	AI_ONGROUND.LinkTo(	scriptObject, "AI_ONGROUND" );
+ 	AI_ONLADDER.LinkTo(	scriptObject, "AI_ONLADDER" );
+ 	AI_HARDLANDING.LinkTo(	scriptObject, "AI_HARDLANDING" );
+@@ -1843,6 +1845,7 @@ void idPlayer::Init()
+ 	sprintMeter				= pm_sprintTime.GetFloat();		// KJ: sprint meter starts full
+ 	sprintMeterLastTime	= gameLocal.time;					// KJ
+ 	sprintExhausted			= false;							// KJ
++	lastSprintTime			= 0;								// KJ: 0 is fine - dive grace window just won't be active until the player actually sprints once
+ 	healthPool		= 0.0f;
+ 	nextHealthPulse = 0;
+ 	healthPulse		= false;
+@@ -1959,6 +1962,8 @@ void idPlayer::Init()
+ 	AI_JUMP			= false;
+ 	AI_DEAD			= false;
+ 	AI_CROUCH		= false;
++	AI_PRONE		= false;	// KJ
++	AI_DIVE			= false;	// KJ
+ 	AI_ONGROUND		= true;
+ 	AI_ONLADDER		= false;
+ 	AI_HARDLANDING	= false;
+@@ -2695,6 +2700,7 @@ void idPlayer::Restore( idRestoreGame* savefile )
+ 	savefile->ReadFloat( sprintMeter );	// KJ
+ 	sprintMeterLastTime = gameLocal.time;	// KJ: avoid a huge dt on the first tick after load
+ 	sprintExhausted = false;				// KJ: don't carry a mid-cooldown latch across a load
++	lastSprintTime = 0;						// KJ: same reasoning
+ 	savefile->ReadFloat( healthPool );
+ 	savefile->ReadInt( nextHealthPulse );
+ 	savefile->ReadBool( healthPulse );
+@@ -3699,6 +3705,8 @@ void idPlayer::EnterCinematic()
+ 	AI_WEAPON_FIRED	= false;
+ 	AI_JUMP			= false;
+ 	AI_CROUCH		= false;
++	AI_PRONE		= false;	// KJ
++	AI_DIVE			= false;	// KJ
+ 	AI_ONGROUND		= true;
+ 	AI_ONLADDER		= false;
+ 	AI_DEAD			= ( health <= 0 );
+@@ -8238,7 +8246,21 @@ void idPlayer::AdjustSpeed()
+ 		speed *= 0.33f;
+ 	}
+ 
+-	physicsObj.SetSpeed( speed, pm_crouchspeed.GetFloat() );
++	physicsObj.SetSpeed( speed, pm_crouchspeed.GetFloat(), pm_crawlspeed.GetFloat() );	// KJ: added crawl speed
++
++	// KJ: dive trigger uses a grace window, not a single-frame lookback. isSprinting
++	// excludes BUTTON_CROUCH by design, so it's already false the instant the player
++	// presses crouch to dive - and a jump takes several frames, during which
++	// isSprinting can legitimately lapse mid-air for reasons unrelated to diving
++	// (see the isSprinting gate above). Rather than chase every individual cause of
++	// a lapse, just remember "was sprinting at all within the last
++	// pm_divegraceperiod seconds" and let physics key off that instead.
++	if( isSprinting )
++	{
++		lastSprintTime = gameLocal.time;
++	}
++	bool recentlySprinting = ( gameLocal.time - lastSprintTime ) <= SEC2MS( pm_divegraceperiod.GetFloat() );
++	physicsObj.SetSprinting( recentlySprinting );
+ }
+ 
+ /*
+@@ -8554,6 +8576,10 @@ void idPlayer::Move_Interpolated( float fraction )
+ 	{
+ 		newEyeOffset = pm_deadviewheight.GetFloat();
+ 	}
++	else if( physicsObj.IsProne() )		// KJ: checked before IsCrouching() since prone implies it
++	{
++		newEyeOffset = pm_proneviewheight.GetFloat();
++	}
+ 	else if( physicsObj.IsCrouching() )
+ 	{
+ 		newEyeOffset = pm_crouchviewheight.GetFloat();
+@@ -8576,11 +8602,13 @@ void idPlayer::Move_Interpolated( float fraction )
+ 		else
+ 		{
+ 			// smooth out duck height changes
+-			SetEyeHeight( EyeHeight() * pm_crouchrate.GetFloat() + newEyeOffset * ( 1.0f - pm_crouchrate.GetFloat() ) );
++			// KJ: pm_pronerate governs the crouch<->prone leg specifically; reuse pm_crouchrate
++			// for stand<->crouch. Since this is a single blend toward whichever newEyeOffset was
++			// just selected, pick the rate based on which transition we're mid-way through.
++			const float duckRate = physicsObj.IsProne() ? pm_pronerate.GetFloat() : pm_crouchrate.GetFloat();
++			SetEyeHeight( EyeHeight() * duckRate + newEyeOffset * ( 1.0f - duckRate ) );
+ 		}
+ 	}
+-
+-	if( AI_JUMP )
+ 	{
+ 		// bounce the view weapon
+ 		loggedAccel_t*	acc = &loggedAccel[currentLoggedAccel & ( NUM_LOGGED_ACCELS - 1 )];
+@@ -8696,6 +8724,10 @@ void idPlayer::Move()
+ 	{
+ 		newEyeOffset = pm_deadviewheight.GetFloat();
+ 	}
++	else if( physicsObj.IsProne() )		// KJ: checked before IsCrouching() since prone implies it
++	{
++		newEyeOffset = pm_proneviewheight.GetFloat();
++	}
+ 	else if( physicsObj.IsCrouching() )
+ 	{
+ 		newEyeOffset = pm_crouchviewheight.GetFloat();
+@@ -8718,13 +8750,16 @@ void idPlayer::Move()
+ 		else
+ 		{
+ 			// smooth out duck height changes
+-			SetEyeHeight( EyeHeight() * pm_crouchrate.GetFloat() + newEyeOffset * ( 1.0f - pm_crouchrate.GetFloat() ) );
++			const float duckRate = physicsObj.IsProne() ? pm_pronerate.GetFloat() : pm_crouchrate.GetFloat();	// KJ
++			SetEyeHeight( EyeHeight() * duckRate + newEyeOffset * ( 1.0f - duckRate ) );
+ 		}
+ 	}
+ 
+ 	if( noclip || gameLocal.inCinematic || ( influenceActive == INFLUENCE_LEVEL2 ) )
+ 	{
+ 		AI_CROUCH	= false;
++		AI_PRONE	= false;	// KJ
++		AI_DIVE		= false;	// KJ
+ 		AI_ONGROUND	= ( influenceActive == INFLUENCE_LEVEL2 );
+ 		AI_ONLADDER	= false;
+ 		AI_JUMP		= false;
+@@ -8732,6 +8767,8 @@ void idPlayer::Move()
+ 	else
+ 	{
+ 		AI_CROUCH	= physicsObj.IsCrouching();
++		AI_PRONE	= physicsObj.IsProne();		// KJ
++		AI_DIVE		= physicsObj.HasDived();	// KJ
+ 		AI_ONGROUND	= physicsObj.HasGroundContacts();
+ 		AI_ONLADDER	= physicsObj.OnLadder();
+ 		AI_JUMP		= physicsObj.HasJumped();
+@@ -12133,6 +12170,8 @@ void idPlayer::WriteToSnapshot( idBitMsg& msg ) const
+ 	msg.WriteBits( enviroSuitLight.GetSpawnId(), 32 );
+ 
+ 	msg.WriteBits( AI_CROUCH, 1 );
++	msg.WriteBits( AI_PRONE, 1 );	// KJ
++	msg.WriteBits( AI_DIVE, 1 );	// KJ
+ 	msg.WriteBits( AI_ONGROUND, 1 );
+ 	msg.WriteBits( AI_ONLADDER, 1 );
+ 	msg.WriteBits( AI_JUMP, 1 );
+@@ -12196,6 +12235,8 @@ void idPlayer::ReadFromSnapshot( const idBitMsg& msg )
+ 	enviroSuitLight.SetSpawnId( enviroSpawnId );
+ 
+ 	bool snapshotCrouch = msg.ReadBool();
++	bool snapshotProne = msg.ReadBool();	// KJ
++	bool snapshotDive = msg.ReadBool();	// KJ
+ 	bool snapshotOnGround = msg.ReadBool();
+ 	bool snapshotOnLadder = msg.ReadBool();
+ 	bool snapshotJump = msg.ReadBool();
+@@ -12217,6 +12258,8 @@ void idPlayer::ReadFromSnapshot( const idBitMsg& msg )
+ 		nextViewQuat = snapViewCQuat.ToQuat();
+ 
+ 		AI_CROUCH = snapshotCrouch;
++		AI_PRONE = snapshotProne;	// KJ
++		AI_DIVE = snapshotDive;		// KJ
+ 		AI_ONGROUND = snapshotOnGround;
+ 		AI_ONLADDER = snapshotOnLadder;
+ 		AI_JUMP = snapshotJump;
+diff --git a/neo/d3xp/Player.h b/neo/d3xp/Player.h
+index b5567e5..d480ba9 100644
+--- a/neo/d3xp/Player.h
++++ b/neo/d3xp/Player.h
+@@ -321,6 +321,9 @@ public:
+ 	idScriptBool			AI_WEAPON_FIRED;
+ 	idScriptBool			AI_JUMP;
+ 	idScriptBool			AI_CROUCH;
++	// KJ: mirrors AI_CROUCH/AI_JUMP exactly - see idPhysics_Player::IsProne()/HasDived().
++	idScriptBool			AI_PRONE;
++	idScriptBool			AI_DIVE;
+ 	idScriptBool			AI_ONGROUND;
+ 	idScriptBool			AI_ONLADDER;
+ 	idScriptBool			AI_DEAD;
+@@ -392,6 +395,14 @@ public:
+ 	// while Run is still held. Clears on release, not on refill, since
+ 	// BO2 requires letting go of Run to regain sprint eligibility.
+ 	bool					sprintExhausted;
++	// KJ: timestamp of the last tick isSprinting was true. Used only to give the
++	// dive trigger a grace window (pm_divegraceperiod) rather than requiring
++	// sprint to be true on the exact frame BUTTON_CROUCH is pressed - a jump
++	// takes several frames, and isSprinting can legitimately lapse mid-air for
++	// reasons unrelated to the dive (see AdjustSpeed()). wasSprintingLastFrame
++	// is a different, one-frame-only mechanism used elsewhere (UpdateWeapon's
++	// attack gate) - don't repurpose it for this.
++	int						lastSprintTime;
+ 	float					healthPool;			// amount of health to give over time
+ 	int						nextHealthPulse;
+ 	bool					healthPulse;
+diff --git a/neo/d3xp/gamesys/SysCvar.cpp b/neo/d3xp/gamesys/SysCvar.cpp
+index 60f879d..9216cb1 100644
+--- a/neo/d3xp/gamesys/SysCvar.cpp
++++ b/neo/d3xp/gamesys/SysCvar.cpp
+@@ -270,6 +270,15 @@ idCVar pm_normalviewheight(			"pm_normalviewheight",		"68",			CVAR_GAME | CVAR_N
+ idCVar pm_deadheight(				"pm_deadheight",			"20",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "height of player's bounding box while dead" );
+ idCVar pm_deadviewheight(			"pm_deadviewheight",		"10",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "height of player's view while dead" );
+ idCVar pm_crouchrate(				"pm_crouchrate",			"0.87",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "time it takes for player's view to change from standing to crouching" );
++// KJ: prone/crawl/dive. Same shape as the crouch cvars above - see idPhysics_Player::CheckDuck().
++idCVar pm_proneheight(				"pm_proneheight",			"20",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "height of player's bounding box while prone" );
++idCVar pm_proneviewheight(			"pm_proneviewheight",		"16",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "height of player's view while prone" );
++idCVar pm_pronerate(				"pm_pronerate",				"0.87",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "time it takes for player's view to change from crouching to prone" );
++idCVar pm_crawlspeed(				"pm_crawlspeed",			"60",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "movement speed while prone/crawling" );
++idCVar pm_diveimpulse(				"pm_diveimpulse",			"140",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "forward velocity applied when dolphin-diving into prone" );
++idCVar pm_divetime(				"pm_divetime",				"0.4",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "seconds the dive-to-prone torso transition takes before the weapon becomes fire-eligible again" );
++idCVar pm_diveholdtime(			"pm_diveholdtime",			"0.15",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "seconds BUTTON_CROUCH must be held while sprinting before the dive triggers - shorter than this just crouches instead" );
++idCVar pm_divegraceperiod(			"pm_divegraceperiod",		"0.5",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "seconds after sprinting last read true that a dive can still trigger - covers jumps, which can legitimately lapse isSprinting mid-air for several frames" );
+ idCVar pm_bboxwidth(				"pm_bboxwidth",				"32",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "x/y size of player's bounding box" );
+ idCVar pm_crouchbob(				"pm_crouchbob",				"0.5",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "bob much faster when crouched" );
+ idCVar pm_walkbob(					"pm_walkbob",				"0.3",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "bob slowly when walking" );
+diff --git a/neo/d3xp/gamesys/SysCvar.h b/neo/d3xp/gamesys/SysCvar.h
+index 762e54f..7a59849 100644
+--- a/neo/d3xp/gamesys/SysCvar.h
++++ b/neo/d3xp/gamesys/SysCvar.h
+@@ -188,6 +188,20 @@ extern idCVar	pm_normalviewheight;
+ extern idCVar	pm_deadheight;
+ extern idCVar	pm_deadviewheight;
+ extern idCVar	pm_crouchrate;
++// KJ: prone/crawl/dive - mirrors the crouch cvars above. See idPhysics_Player::CheckDuck().
++extern idCVar	pm_proneheight;
++extern idCVar	pm_proneviewheight;
++extern idCVar	pm_pronerate;
++extern idCVar	pm_crawlspeed;
++extern idCVar	pm_diveimpulse;
++extern idCVar	pm_divetime;
++// KJ: pm_diveholdtime - how long BUTTON_CROUCH must be held while sprinting before
++// the dive actually fires (a quick tap while sprinting should just crouch instead).
++// pm_divegraceperiod - how long after isSprinting last read true the dive is still
++// allowed to trigger, so a jump (which takes several frames, and can legitimately
++// lapse isSprinting mid-air) doesn't close the window before the player can react.
++extern idCVar	pm_diveholdtime;
++extern idCVar	pm_divegraceperiod;
+ extern idCVar	pm_bboxwidth;
+ extern idCVar	pm_crouchbob;
+ extern idCVar	pm_walkbob;
+diff --git a/neo/d3xp/physics/Physics_Player.cpp b/neo/d3xp/physics/Physics_Player.cpp
+index 22c7280..2859d5a 100644
+--- a/neo/d3xp/physics/Physics_Player.cpp
++++ b/neo/d3xp/physics/Physics_Player.cpp
+@@ -64,6 +64,9 @@ const int PMF_TIME_LAND			= 32;		// movementTime is time before rejump
+ const int PMF_TIME_KNOCKBACK	= 64;		// movementTime is an air-accelerate only time
+ const int PMF_TIME_WATERJUMP	= 128;		// movementTime is waterjump
+ const int PMF_ALL_TIMES			= ( PMF_TIME_WATERJUMP | PMF_TIME_LAND | PMF_TIME_KNOCKBACK );
++// KJ: prone/dive
++const int PMF_PRONE				= 256;		// set when prone (always accompanied by PMF_DUCKED)
++const int PMF_DIVED				= 512;		// set on the physics frame a dolphin dive triggered - one-shot pulse, mirrors PMF_JUMPED
+ 
+ int c_pmove = 0;
+ 
+@@ -1198,6 +1201,16 @@ void idPhysics_Player::CheckGround()
+ idPhysics_Player::CheckDuck
+ 
+ Sets clip model size
++
++KJ: now a 3-tier stance ladder (stand/crouch/prone) driven by a single button,
++edge-triggered ping-pong: each press of BUTTON_CROUCH advances one step in
++whichever direction it was last headed (stand->crouch->prone), then reverses
++at either end (prone->crouch->stand->crouch->prone->...). See stanceDescending.
++
++Also handles the dolphin dive (holding BUTTON_CROUCH while wantSprinting is
++true skips straight to prone from any stance, grounded or airborne - see
++PMF_DIVED) and jump-cancel (pressing BUTTON_JUMP while crouched/prone snaps
++straight back toward standing, same as classic CoD).
+ ==============
+ */
+ void idPhysics_Player::CheckDuck()
+@@ -1213,28 +1226,133 @@ void idPhysics_Player::CheckDuck()
+ 	}
+ 	else
+ 	{
+-		// stand up when up against a ladder
+-		if( ( command.buttons & BUTTON_CROUCH ) && !ladder )
++		bool buttonCrouchDown = ( ( command.buttons & BUTTON_CROUCH ) != 0 );
++		bool crouchPressed = buttonCrouchDown && !oldButtonCrouch;		// KJ: rising edge
++		bool crouchReleased = !buttonCrouchDown && oldButtonCrouch;	// KJ: falling edge
++		oldButtonCrouch = buttonCrouchDown;								// KJ
++
++		bool triggerCycle = false;		// KJ: set below when an ordinary (non-dive) press should run the stand/crouch/prone cycle
++
++		// stand up when up against a ladder, regardless of stance input
++		if( ladder )
+ 		{
+-			// duck
+-			current.movementFlags |= PMF_DUCKED;
++			current.movementFlags &= ~( PMF_DUCKED | PMF_PRONE );			// KJ: also clears prone
++			stanceDescending = true;										// KJ
++			diveArmed = false;												// KJ: cancel any pending dive-hold too
+ 		}
+ 		else
+ 		{
+-			// stand up if possible
+-			if( current.movementFlags & PMF_DUCKED )
++			// KJ: dive arming. A press while wantSprinting starts the hold timer
++			// instead of doing anything immediately - only crossing pm_diveholdtime
++			// actually fires the dive. Releasing before that threshold falls through
++			// to an ordinary quick crouch-press instead (see crouchReleased below).
++			if( crouchPressed && wantSprinting && !( current.movementFlags & PMF_PRONE ) )
++			{
++				diveArmed = true;
++				diveHoldTime = 0.0f;
++			}
++
++			if( diveArmed && buttonCrouchDown )
++			{
++				diveHoldTime += frametime;
++				if( diveHoldTime >= pm_diveholdtime.GetFloat() )
++				{
++					// KJ: dolphin dive - works identically whether grounded or airborne
++					// (e.g. off a jump), since wantSprinting's grace window carries no
++					// ground-state requirement of its own.
++					current.movementFlags |= ( PMF_DUCKED | PMF_PRONE | PMF_DIVED );
++					stanceDescending = true;		// next press should climb back up to crouch
++					current.velocity += pm_diveimpulse.GetFloat() * viewForward;
++					diveArmed = false;
++				}
++			}
++			else if( diveArmed && crouchReleased )
++			{
++				// KJ: released before reaching the hold threshold - just a quick tap
++				diveArmed = false;
++				triggerCycle = true;
++			}
++
++			if( ( command.buttons & BUTTON_JUMP ) && ( current.movementFlags & ( PMF_DUCKED | PMF_PRONE ) ) )
+ 			{
+-				// try to stand up
+-				end = current.origin - ( pm_normalheight.GetFloat() - pm_crouchheight.GetFloat() ) * gravityNormal;
++				// KJ: jump cancels crouch/prone straight back toward standing
++				end = current.origin - ( pm_normalheight.GetFloat() - pm_proneheight.GetFloat() ) * gravityNormal;
+ 				gameLocal.clip.Translation( trace, current.origin, end, clipModel, clipModel->GetAxis(), clipMask, self );
+ 				if( trace.fraction >= 1.0f )
+ 				{
+-					current.movementFlags &= ~PMF_DUCKED;
++					// room to go all the way to standing
++					current.movementFlags &= ~( PMF_DUCKED | PMF_PRONE );
++				}
++				else
++				{
++					// blocked from full standing - settle for crouch instead
++					current.movementFlags &= ~PMF_PRONE;
++				}
++				stanceDescending = true;
++				diveArmed = false;		// KJ
++			}
++			else if( crouchPressed && !diveArmed )
++			{
++				// KJ: !diveArmed - a press that just got armed for a potential dive
++				// above doesn't also trigger the cycle here; it either fires the dive
++				// or falls through to triggerCycle on release instead.
++				triggerCycle = true;
++			}
++
++			if( triggerCycle )
++			{
++				if( stanceDescending )
++				{
++					if( !( current.movementFlags & PMF_DUCKED ) )
++					{
++						// stand -> crouch
++						current.movementFlags |= PMF_DUCKED;
++					}
++					else if( !( current.movementFlags & PMF_PRONE ) )
++					{
++						// crouch -> prone
++						current.movementFlags |= PMF_PRONE;
++					}
++					else
++					{
++						// already at the bottom - reverse and step back up
++						stanceDescending = false;
++						current.movementFlags &= ~PMF_PRONE;
++					}
++				}
++				else
++				{
++					if( current.movementFlags & PMF_PRONE )
++					{
++						// prone -> crouch
++						current.movementFlags &= ~PMF_PRONE;
++					}
++					else if( current.movementFlags & PMF_DUCKED )
++					{
++						// crouch -> stand, only if there's room
++						end = current.origin - ( pm_normalheight.GetFloat() - pm_crouchheight.GetFloat() ) * gravityNormal;
++						gameLocal.clip.Translation( trace, current.origin, end, clipModel, clipModel->GetAxis(), clipMask, self );
++						if( trace.fraction >= 1.0f )
++						{
++							current.movementFlags &= ~PMF_DUCKED;
++						}
++					}
++					else
++					{
++						// already at the top - reverse and step back down
++						stanceDescending = true;
++						current.movementFlags |= PMF_DUCKED;
++					}
+ 				}
+ 			}
+ 		}
+ 
+-		if( current.movementFlags & PMF_DUCKED )
++		if( current.movementFlags & PMF_PRONE )
++		{
++			playerSpeed = crawlSpeed;
++			maxZ = pm_proneheight.GetFloat();
++		}
++		else if( current.movementFlags & PMF_DUCKED )
+ 		{
+ 			playerSpeed = crouchSpeed;
+ 			maxZ = pm_crouchheight.GetFloat();
+@@ -1462,7 +1580,7 @@ void idPhysics_Player::MovePlayer( int msec )
+ 	playerSpeed = walkSpeed;
+ 
+ 	// remove jumped and stepped up flag
+-	current.movementFlags &= ~( PMF_JUMPED | PMF_STEPPED_UP | PMF_STEPPED_DOWN );
++	current.movementFlags &= ~( PMF_JUMPED | PMF_STEPPED_UP | PMF_STEPPED_DOWN | PMF_DIVED );	// KJ: added PMF_DIVED
+ 	current.stepUp = 0.0f;
+ 
+ 	if( ( command.buttons & BUTTON_JUMP ) == 0 )
+@@ -1605,6 +1723,30 @@ bool idPhysics_Player::IsCrouching() const
+ 	return ( ( current.movementFlags & PMF_DUCKED ) != 0 );
+ }
+ 
++/*
++================
++idPhysics_Player::IsProne
++
++KJ: always accompanied by IsCrouching() also being true - see CheckDuck().
++================
++*/
++bool idPhysics_Player::IsProne() const
++{
++	return ( ( current.movementFlags & PMF_PRONE ) != 0 );
++}
++
++/*
++================
++idPhysics_Player::HasDived
++
++KJ: one-shot pulse, mirrors HasJumped()/PMF_JUMPED.
++================
++*/
++bool idPhysics_Player::HasDived() const
++{
++	return ( ( current.movementFlags & PMF_DIVED ) != 0 );
++}
++
+ /*
+ ================
+ idPhysics_Player::OnLadder
+@@ -1629,6 +1771,12 @@ idPhysics_Player::idPhysics_Player()
+ 	saved = current;
+ 	walkSpeed = 0;
+ 	crouchSpeed = 0;
++	crawlSpeed = 0;				// KJ
++	oldButtonCrouch = false;		// KJ
++	stanceDescending = true;		// KJ: first press from standing should go deeper (to crouch)
++	wantSprinting = false;			// KJ
++	diveArmed = false;				// KJ
++	diveHoldTime = 0.0f;			// KJ
+ 	maxStepHeight = 0;
+ 	maxJumpHeight = 0;
+ 	memset( &command, 0, sizeof( command ) );
+@@ -1695,6 +1843,8 @@ void idPhysics_Player::Save( idSaveGame* savefile ) const
+ 
+ 	savefile->WriteFloat( walkSpeed );
+ 	savefile->WriteFloat( crouchSpeed );
++	savefile->WriteFloat( crawlSpeed );			// KJ
++	savefile->WriteBool( stanceDescending );		// KJ
+ 	savefile->WriteFloat( maxStepHeight );
+ 	savefile->WriteFloat( maxJumpHeight );
+ 	savefile->WriteInt( debugLevel );
+@@ -1733,6 +1883,12 @@ void idPhysics_Player::Restore( idRestoreGame* savefile )
+ 
+ 	savefile->ReadFloat( walkSpeed );
+ 	savefile->ReadFloat( crouchSpeed );
++	savefile->ReadFloat( crawlSpeed );				// KJ
++	savefile->ReadBool( stanceDescending );		// KJ
++	oldButtonCrouch = false;						// KJ: transient input mirror, don't carry a stale edge across a load
++	wantSprinting = false;							// KJ: same
++	diveArmed = false;								// KJ: same
++	diveHoldTime = 0.0f;							// KJ: same
+ 	savefile->ReadFloat( maxStepHeight );
+ 	savefile->ReadFloat( maxJumpHeight );
+ 	savefile->ReadInt( debugLevel );
+@@ -1774,10 +1930,25 @@ void idPhysics_Player::SetPlayerInput( const usercmd_t& cmd, const idVec3& forwa
+ idPhysics_Player::SetSpeed
+ ================
+ */
+-void idPhysics_Player::SetSpeed( const float newWalkSpeed, const float newCrouchSpeed )
++void idPhysics_Player::SetSpeed( const float newWalkSpeed, const float newCrouchSpeed, const float newCrawlSpeed )
+ {
+ 	walkSpeed = newWalkSpeed;
+ 	crouchSpeed = newCrouchSpeed;
++	crawlSpeed = newCrawlSpeed;		// KJ
++}
++
++/*
++================
++idPhysics_Player::SetSprinting
++
++KJ: purely so CheckDuck() can detect the dive-to-prone trigger condition
++(isSprinting && crouch pressed). Doesn't feed movement speed at all - that's
++still entirely SetSpeed()'s job.
++================
++*/
++void idPhysics_Player::SetSprinting( const bool sprinting )
++{
++	wantSprinting = sprinting;
+ }
+ 
+ /*
+diff --git a/neo/d3xp/physics/Physics_Player.h b/neo/d3xp/physics/Physics_Player.h
+index 7a59bfc..7851bde 100644
+--- a/neo/d3xp/physics/Physics_Player.h
++++ b/neo/d3xp/physics/Physics_Player.h
+@@ -90,7 +90,11 @@ public:
+ 	void					Restore( idRestoreGame* savefile );
+ 
+ 	// initialisation
+-	void					SetSpeed( const float newWalkSpeed, const float newCrouchSpeed );
++	void					SetSpeed( const float newWalkSpeed, const float newCrouchSpeed, const float newCrawlSpeed );
++	// KJ: physics needs to know if the player is currently sprinting (per idPlayer::AdjustSpeed()'s
++	// isSprinting) purely to detect the dive-to-prone trigger - see CheckDuck(). Doesn't affect
++	// movement speed itself; that's still driven entirely by SetSpeed().
++	void					SetSprinting( const bool sprinting );
+ 	void					SetMaxStepHeight( const float newMaxStepHeight );
+ 	float					GetMaxStepHeight() const;
+ 	void					SetMaxJumpHeight( const float newMaxJumpHeight );
+@@ -103,6 +107,12 @@ public:
+ 	bool					HasSteppedUp() const;
+ 	float					GetStepUp() const;
+ 	bool					IsCrouching() const;
++	// KJ: true while prone (always accompanied by IsCrouching() also being true - see CheckDuck()).
++	bool					IsProne() const;
++	// KJ: one-shot pulse, true only on the physics frame the dolphin dive triggered - mirrors
++	// HasJumped()/PMF_JUMPED. Player.cpp mirrors this into the script-linked AI_DIVE the same
++	// way HasJumped() feeds AI_JUMP.
++	bool					HasDived() const;
+ 	bool					OnLadder() const;
+ 	const idVec3& 			PlayerGetOrigin() const;	// != GetOrigin
+ 
+@@ -159,6 +169,18 @@ private:
+ 	// properties
+ 	float					walkSpeed;
+ 	float					crouchSpeed;
++	// KJ: prone/crawl/dive state - see idPhysics_Player::CheckDuck().
++	float					crawlSpeed;
++	bool					oldButtonCrouch;	// crouch button state last frame, for edge detection
++	bool					stanceDescending;	// ping-pong direction: true = next press goes deeper (stand->crouch->prone), false = next press goes shallower
++	bool					wantSprinting;		// mirrors idPlayer::AdjustSpeed()'s grace-windowed "recently sprinting" signal, set via SetSprinting() each frame - used only to detect the dive trigger
++	// KJ: dive requires holding BUTTON_CROUCH for pm_diveholdtime while wantSprinting,
++	// not just tapping it - see CheckDuck(). diveArmed is true from the moment of a
++	// press that occurred while wantSprinting was true, until either the hold
++	// threshold is reached (dive fires) or the button releases early (treated as an
++	// ordinary quick crouch-press instead).
++	bool					diveArmed;
++	float					diveHoldTime;
+ 	float					maxStepHeight;
+ 	float					maxJumpHeight;
+ 	int						debugLevel;				// if set, diagnostic output will be printed

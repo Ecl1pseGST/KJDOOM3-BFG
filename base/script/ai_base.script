@@ -79,6 +79,8 @@ object player_base {
 	boolean		AI_JUMP;
 	boolean		AI_DEAD;
 	boolean		AI_CROUCH;
+	boolean		AI_PRONE;		// KJ
+	boolean		AI_DIVE;		// KJ
 	boolean		AI_ONGROUND;
 	boolean		AI_ONLADDER;
 	boolean		AI_RUN;

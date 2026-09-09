@@ -188,6 +188,20 @@ extern idCVar	pm_normalviewheight;
 extern idCVar	pm_deadheight;
 extern idCVar	pm_deadviewheight;
 extern idCVar	pm_crouchrate;
+// KJ: prone/crawl/dive - mirrors the crouch cvars above. See idPhysics_Player::CheckDuck().
+extern idCVar	pm_proneheight;
+extern idCVar	pm_proneviewheight;
+extern idCVar	pm_pronerate;
+extern idCVar	pm_crawlspeed;
+extern idCVar	pm_diveimpulse;
+extern idCVar	pm_divetime;
+// KJ: pm_diveholdtime - how long BUTTON_CROUCH must be held while sprinting before
+// the dive actually fires (a quick tap while sprinting should just crouch instead).
+// pm_divegraceperiod - how long after isSprinting last read true the dive is still
+// allowed to trigger, so a jump (which takes several frames, and can legitimately
+// lapse isSprinting mid-air) doesn't close the window before the player can react.
+extern idCVar	pm_diveholdtime;
+extern idCVar	pm_divegraceperiod;
 extern idCVar	pm_bboxwidth;
 extern idCVar	pm_crouchbob;
 extern idCVar	pm_walkbob;

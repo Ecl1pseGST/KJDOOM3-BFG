@@ -321,6 +321,9 @@ public:
 	idScriptBool			AI_WEAPON_FIRED;
 	idScriptBool			AI_JUMP;
 	idScriptBool			AI_CROUCH;
+	// KJ: mirrors AI_CROUCH/AI_JUMP exactly - see idPhysics_Player::IsProne()/HasDived().
+	idScriptBool			AI_PRONE;
+	idScriptBool			AI_DIVE;
 	idScriptBool			AI_ONGROUND;
 	idScriptBool			AI_ONLADDER;
 	idScriptBool			AI_DEAD;
@@ -392,6 +395,14 @@ public:
 	// while Run is still held. Clears on release, not on refill, since
 	// BO2 requires letting go of Run to regain sprint eligibility.
 	bool					sprintExhausted;
+	// KJ: timestamp of the last tick isSprinting was true. Used only to give the
+	// dive trigger a grace window (pm_divegraceperiod) rather than requiring
+	// sprint to be true on the exact frame BUTTON_CROUCH is pressed - a jump
+	// takes several frames, and isSprinting can legitimately lapse mid-air for
+	// reasons unrelated to the dive (see AdjustSpeed()). wasSprintingLastFrame
+	// is a different, one-frame-only mechanism used elsewhere (UpdateWeapon's
+	// attack gate) - don't repurpose it for this.
+	int						lastSprintTime;
 	float					healthPool;			// amount of health to give over time
 	int						nextHealthPulse;
 	bool					healthPulse;
