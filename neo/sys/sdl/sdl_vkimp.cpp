@@ -55,7 +55,7 @@ idCVar in_nograb( "in_nograb", "0", CVAR_SYSTEM | CVAR_NOCHEAT, "prevents input 
 static bool grabbed = false;
 static SDL_Window* window = nullptr;
 
-// Eric: Integrate this into RBDoom3BFG's source code ecosystem.
+// Eric: Integrate this into KJDoom3BFG's source code ecosystem.
 // Helper function for using SDL2 and Vulkan on Linux.
 std::vector<const char*> get_required_extensions()
 {

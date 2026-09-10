@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 if(NOT DEFINED APP_NAME)
 	# RB: This sets the name of the .exe and is the only line needed for a different mod executable.
 	# If you want to make a different game then you also need to change neo/framework/Licensee.h
-    set(APP_NAME RBDoom3BFG)
+    set(APP_NAME KJDoom3BFG)
 endif()
 project(${APP_NAME})
 
@@ -962,7 +962,7 @@ source_group("tools\\imgui\\lighteditor" FILES ${IMGUI_EDITOR_LIGHT_SOURCES})
 source_group("tools\\imgui\\util" FILES ${IMGUI_EDITOR_UTIL_INCLUDES})
 source_group("tools\\imgui\\util" FILES ${IMGUI_EDITOR_UTIL_SOURCES})
 
-set(RBDOOM3_INCLUDES
+set(KJDOOM3_INCLUDES
 			${AAS_INCLUDES}
 			${CM_INCLUDES}
 			${FRAMEWORK_INCLUDES}
@@ -1010,7 +1010,7 @@ set(RBDOOM3_INCLUDES
 			${GAMED3XP_SCRIPT_INCLUDES}
 			)
 			
-set(RBDOOM3_SOURCES
+set(KJDOOM3_SOURCES
 			${NATVIS_SOURCES}
 			${AAS_SOURCES}
 			${CM_SOURCES}
@@ -1057,8 +1057,8 @@ macro(AddSubdirectory dirName)
 	source_group(${dirName} FILES ${DIR_INCLUDES})
 	source_group(${dirName} FILES ${DIR_SOURCES})
 
-	list(APPEND RBDOOM3_INCLUDES ${DIR_INCLUDES})
-	list(APPEND RBDOOM3_SOURCES ${DIR_SOURCES})
+	list(APPEND KJDOOM3_INCLUDES ${DIR_INCLUDES})
+	list(APPEND KJDOOM3_SOURCES ${DIR_SOURCES})
 endmacro()
 
 AddSubdirectory( tools/imgui/afeditor )
@@ -1066,11 +1066,11 @@ AddSubdirectory( tools/imgui/afeditor )
 if(DOOM_CLASSIC)
 	add_definitions(-DUSE_DOOMCLASSIC)
 
-	list(APPEND RBDOOM3_INCLUDES ${DOOMCLASSIC_INCLUDES})
-	list(APPEND RBDOOM3_INCLUDES ${TIMIDITY_INCLUDES})
+	list(APPEND KJDOOM3_INCLUDES ${DOOMCLASSIC_INCLUDES})
+	list(APPEND KJDOOM3_INCLUDES ${TIMIDITY_INCLUDES})
 	
-	list(APPEND RBDOOM3_SOURCES ${DOOMCLASSIC_SOURCES})
-	list(APPEND RBDOOM3_SOURCES ${TIMIDITY_SOURCES})
+	list(APPEND KJDOOM3_SOURCES ${DOOMCLASSIC_SOURCES})
+	list(APPEND KJDOOM3_SOURCES ${TIMIDITY_SOURCES})
 endif()
 
 add_definitions(-D__DOOM__)
@@ -1098,8 +1098,8 @@ if(MSVC)
 	endif()
 	
 	if(USE_DX12)
-		list(APPEND RBDOOM3_INCLUDES ${RENDERER_NVRHI_INCLUDES})
-		list(APPEND RBDOOM3_SOURCES ${RENDERER_NVRHI_SOURCES})
+		list(APPEND KJDOOM3_INCLUDES ${RENDERER_NVRHI_INCLUDES})
+		list(APPEND KJDOOM3_SOURCES ${RENDERER_NVRHI_SOURCES})
 	endif()
 	
 	if(OPENAL)
@@ -1113,10 +1113,10 @@ if(MSVC)
 			link_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/openal-soft/lib/win32)
 		endif()
 		
-		list(APPEND RBDOOM3_INCLUDES ${OPENAL_INCLUDES})
-		list(APPEND RBDOOM3_SOURCES	${OPENAL_SOURCES})
+		list(APPEND KJDOOM3_INCLUDES ${OPENAL_INCLUDES})
+		list(APPEND KJDOOM3_SOURCES	${OPENAL_SOURCES})
 		if(DOOM_CLASSIC)
-			list(APPEND RBDOOM3_SOURCES	${DOOMCLASSIC_OPENAL_SOURCES})
+			list(APPEND KJDOOM3_SOURCES	${DOOMCLASSIC_OPENAL_SOURCES})
 		endif()		
 		
 		set(OpenAL_LIBRARIES
@@ -1129,11 +1129,11 @@ if(MSVC)
 			install(FILES libs/openal-soft/lib/bin/win32/OpenAL32.pdb DESTINATION .)
 		endif()
 	else()
-		list(APPEND RBDOOM3_INCLUDES ${XAUDIO2_INCLUDES})
-		list(APPEND RBDOOM3_SOURCES	${XAUDIO2_SOURCES})
+		list(APPEND KJDOOM3_INCLUDES ${XAUDIO2_INCLUDES})
+		list(APPEND KJDOOM3_SOURCES	${XAUDIO2_SOURCES})
 
 		if(DOOM_CLASSIC)
-			list(APPEND RBDOOM3_SOURCES	${DOOMCLASSIC_XAUDIO2_SOURCES})
+			list(APPEND KJDOOM3_SOURCES	${DOOMCLASSIC_XAUDIO2_SOURCES})
 		endif()
 	endif()
 	
@@ -1169,30 +1169,30 @@ if(MSVC)
 		
 	endif()
 	
-	list(APPEND RBDOOM3_INCLUDES
+	list(APPEND KJDOOM3_INCLUDES
 		${SYS_INCLUDES} 
 		${WIN32_INCLUDES})
 		
-	list(APPEND RBDOOM3_SOURCES
+	list(APPEND KJDOOM3_SOURCES
 		${SYS_SOURCES}
 		${WIN32_SOURCES})
 
-	list(REMOVE_DUPLICATES RBDOOM3_SOURCES)
+	list(REMOVE_DUPLICATES KJDOOM3_SOURCES)
 	
 	if(USE_PRECOMPILED_HEADERS) 
-		set(RBDOOM3_PRECOMPILED_SOURCES ${RBDOOM3_SOURCES})
-		list(REMOVE_ITEM RBDOOM3_PRECOMPILED_SOURCES ${TIMIDITY_SOURCES} ${ZLIB_SOURCES} ${BINKDEC_SOURCES} ${IMGUI_SOURCES} ${MIKKTSPACE_SOURCES} ${OGGVORBIS_SOURCES} ${OPTICK_SOURCES})
-		list(REMOVE_ITEM RBDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/libs/zlib/minizip/ioapi.c)
-		list(REMOVE_ITEM RBDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/renderer/DXT/DXTDecoder.cpp)
-		list(REMOVE_ITEM RBDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/renderer/DXT/DXTEncoder.cpp)
-		list(REMOVE_ITEM RBDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/renderer/DXT/DXTEncoder_SSE2.cpp)
+		set(KJDOOM3_PRECOMPILED_SOURCES ${KJDOOM3_SOURCES})
+		list(REMOVE_ITEM KJDOOM3_PRECOMPILED_SOURCES ${TIMIDITY_SOURCES} ${ZLIB_SOURCES} ${BINKDEC_SOURCES} ${IMGUI_SOURCES} ${MIKKTSPACE_SOURCES} ${OGGVORBIS_SOURCES} ${OPTICK_SOURCES})
+		list(REMOVE_ITEM KJDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/libs/zlib/minizip/ioapi.c)
+		list(REMOVE_ITEM KJDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/renderer/DXT/DXTDecoder.cpp)
+		list(REMOVE_ITEM KJDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/renderer/DXT/DXTEncoder.cpp)
+		list(REMOVE_ITEM KJDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/renderer/DXT/DXTEncoder_SSE2.cpp)
 	
-		#foreach( src_file ${RBDOOM3_PRECOMPILED_SOURCES} )
+		#foreach( src_file ${KJDOOM3_PRECOMPILED_SOURCES} )
 		#	message(STATUS "-include precompiled.h for ${src_file}")
 		#endforeach()
 	
 		set_source_files_properties(
-			${RBDOOM3_PRECOMPILED_SOURCES}
+			${KJDOOM3_PRECOMPILED_SOURCES}
 			PROPERTIES
 			COMPILE_FLAGS "/Yuprecompiled.h"
 			OBJECT_DEPENDS "precompiled.pch"
@@ -1212,9 +1212,9 @@ if(MSVC)
 			COMPILE_FLAGS "/wd4101 /wd4267"	# C4101: unreferenced local variable, C4267: type conversion with possible loss of data
 			)
 	
-	list(APPEND RBDOOM3_SOURCES ${WIN32_RESOURCES})
+	list(APPEND KJDOOM3_SOURCES ${WIN32_RESOURCES})
 	
-	add_executable(${APP_NAME} WIN32 ${RBDOOM3_INCLUDES} ${RBDOOM3_SOURCES})
+	add_executable(${APP_NAME} WIN32 ${KJDOOM3_INCLUDES} ${KJDOOM3_SOURCES})
 	add_dependencies(${APP_NAME} idlib)
     
     if(USE_DX12)
@@ -1256,7 +1256,7 @@ if(MSVC)
 
 else()
 
-	list(APPEND RBDOOM3_SOURCES
+	list(APPEND KJDOOM3_SOURCES
 		${SYS_INCLUDES} ${SYS_SOURCES})
 	
 	if(UNIX)
@@ -1277,7 +1277,7 @@ else()
 			list(REMOVE_ITEM POSIX_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/sys/posix/platform_osx.cpp)
 		endif()
 
-		list(APPEND RBDOOM3_SOURCES
+		list(APPEND KJDOOM3_SOURCES
 			${POSIX_INCLUDES} ${POSIX_SOURCES}
 			${SDL_INCLUDES} ${SDL_SOURCES})
 			
@@ -1291,45 +1291,45 @@ else()
 				add_definitions(-DUSE_OPENAL_SOFT_INCLUDES)
 			endif()
 
-			list(APPEND RBDOOM3_INCLUDES ${OPENAL_INCLUDES})
-			list(APPEND RBDOOM3_SOURCES ${OPENAL_SOURCES})
+			list(APPEND KJDOOM3_INCLUDES ${OPENAL_INCLUDES})
+			list(APPEND KJDOOM3_SOURCES ${OPENAL_SOURCES})
 				
 			if(DOOM_CLASSIC)
-				list(APPEND RBDOOM3_SOURCES	${DOOMCLASSIC_OPENAL_SOURCES})
+				list(APPEND KJDOOM3_SOURCES	${DOOMCLASSIC_OPENAL_SOURCES})
 			endif()
 		else()
-			list(APPEND RBDOOM3_INCLUDES ${STUBAUDIO_INCLUDES})
-			list(APPEND RBDOOM3_SOURCES ${STUBAUDIO_SOURCES})
+			list(APPEND KJDOOM3_INCLUDES ${STUBAUDIO_INCLUDES})
+			list(APPEND KJDOOM3_SOURCES ${STUBAUDIO_SOURCES})
 			
 			if(DOOM_CLASSIC)
-				list(APPEND RBDOOM3_SOURCES	${DOOMCLASSIC_STUBAUDIO_SOURCES})
+				list(APPEND KJDOOM3_SOURCES	${DOOMCLASSIC_STUBAUDIO_SOURCES})
 			endif()
 		endif()
 		
 		if(USE_VULKAN)
-            list(APPEND RBDOOM3_INCLUDES ${RENDERER_NVRHI_INCLUDES})
-            list(APPEND RBDOOM3_SOURCES ${RENDERER_NVRHI_SOURCES})
+            list(APPEND KJDOOM3_INCLUDES ${RENDERER_NVRHI_INCLUDES})
+            list(APPEND KJDOOM3_SOURCES ${RENDERER_NVRHI_SOURCES})
 
             #set(Vulkan_LIBRARIES ${Vulkan_LIBRARY})
         endif()
 			
 	endif()
 
-	list(REMOVE_DUPLICATES RBDOOM3_SOURCES)
+	list(REMOVE_DUPLICATES KJDOOM3_SOURCES)
 	
 	if(USE_PRECOMPILED_HEADERS)
-		# we need to recreate the precompiled header for RBDoom3BFG
+		# we need to recreate the precompiled header for KJDoom3BFG
 		# (i.e. can't use the one created for idlib before)
 		# because some definitions (e.g. -D__IDLIB__ -D__DOOM_DLL__) differ
 
-		set(RBDOOM3_PRECOMPILED_SOURCES ${RBDOOM3_SOURCES})
-		list(REMOVE_ITEM RBDOOM3_PRECOMPILED_SOURCES ${TIMIDITY_SOURCES} ${ZLIB_SOURCES} ${BINKDEC_SOURCES} ${IMGUI_SOURCES} ${MIKKTSPACE_SOURCES} ${OGGVORBIS_SOURCES} ${OPTICK_SOURCES})
-		list(REMOVE_ITEM RBDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/libs/zlib/minizip/ioapi.c)
-		list(REMOVE_ITEM RBDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/renderer/DXT/DXTDecoder.cpp)
-		list(REMOVE_ITEM RBDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/renderer/DXT/DXTEncoder.cpp)
-		list(REMOVE_ITEM RBDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/renderer/DXT/DXTEncoder_SSE2.cpp)
+		set(KJDOOM3_PRECOMPILED_SOURCES ${KJDOOM3_SOURCES})
+		list(REMOVE_ITEM KJDOOM3_PRECOMPILED_SOURCES ${TIMIDITY_SOURCES} ${ZLIB_SOURCES} ${BINKDEC_SOURCES} ${IMGUI_SOURCES} ${MIKKTSPACE_SOURCES} ${OGGVORBIS_SOURCES} ${OPTICK_SOURCES})
+		list(REMOVE_ITEM KJDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/libs/zlib/minizip/ioapi.c)
+		list(REMOVE_ITEM KJDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/renderer/DXT/DXTDecoder.cpp)
+		list(REMOVE_ITEM KJDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/renderer/DXT/DXTEncoder.cpp)
+		list(REMOVE_ITEM KJDOOM3_PRECOMPILED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/renderer/DXT/DXTEncoder_SSE2.cpp)
 
-		foreach( src_file ${RBDOOM3_PRECOMPILED_SOURCES} )
+		foreach( src_file ${KJDOOM3_PRECOMPILED_SOURCES} )
 			#message(STATUS "-include precompiled.h for ${src_file}")
 			set_source_files_properties(
 				${src_file}
@@ -1361,14 +1361,14 @@ else()
 			LIST(APPEND _compiler_FLAGS -DUSE_OPTICK=0)
 		endif()
 
-		add_custom_target(precomp_header_rbdoom3bfg ALL
+		add_custom_target(precomp_header_kjdoom3bfg ALL
 				COMMAND ${CMAKE_CXX_COMPILER} ${_compiler_FLAGS} -x c++-header idlib/precompiled.h -o idlib/precompiled.h.gch
 				WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 				COMMENT "Creating idlib/precompiled.h.gch for ${APP_NAME}"
 				)
 
 		# make sure this is run after creating idlib
-		add_dependencies(precomp_header_rbdoom3bfg idlib)
+		add_dependencies(precomp_header_kjdoom3bfg idlib)
 	endif()
 
 	# SRS - disable certain gcc/clang warnings for select third-party source libraries, consider updating versions in the future?
@@ -1398,16 +1398,16 @@ else()
 		set_source_files_properties(sys/posix/res/Doom3BFG.icns PROPERTIES XCODE_EXPLICIT_FILE_TYPE .icns)
 
 		# add macOS bundle properties to executable
-		set(MACOSX_BUNDLE_BUNDLE_NAME RBDoom-3-BFG)
+		set(MACOSX_BUNDLE_BUNDLE_NAME KJDoom-3-BFG)
 		set(MACOSX_BUNDLE_BUNDLE_VERSION 1.6.0)
 		set(MACOSX_BUNDLE_SHORT_VERSION_STRING 1.6.0)
 		set(MACOSX_BUNDLE_ICON_FILE Doom3BFG.icns)
 		set(MACOSX_BUNDLE_INFO_STRING "")					# to be added by author if desired
 		set(MACOSX_BUNDLE_COPYRIGHT "")						# to be added by author if desired
 
-		add_executable(${APP_NAME} MACOSX_BUNDLE ${MACOS_RESOURCES} ${RBDOOM3_INCLUDES} ${RBDOOM3_SOURCES})
+		add_executable(${APP_NAME} MACOSX_BUNDLE ${MACOS_RESOURCES} ${KJDOOM3_INCLUDES} ${KJDOOM3_SOURCES})
 	else()
-		add_executable(${APP_NAME} WIN32 ${RBDOOM3_INCLUDES} ${RBDOOM3_SOURCES})
+		add_executable(${APP_NAME} WIN32 ${KJDOOM3_INCLUDES} ${KJDOOM3_SOURCES})
 	endif()
 
 	if(USE_VULKAN)
@@ -1416,7 +1416,7 @@ else()
 
 	if (USE_PRECOMPILED_HEADERS)
 		# make sure precompiled header is created before executable is compiled
-		add_dependencies(${APP_NAME} precomp_header_rbdoom3bfg)
+		add_dependencies(${APP_NAME} precomp_header_kjdoom3bfg)
 		
 		if(WIN32)
 			set(remove_command "del")

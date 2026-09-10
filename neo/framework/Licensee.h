@@ -38,9 +38,9 @@ If you have questions concerning this license or the applicable additional terms
 #define GAME_NAME						"DOOM 3: BFG Edition"		// appears on window titles and errors
 
 // RB: changed home folder so we don't break the savegame of the original game
-#define SAVE_PATH						"\\id Software\\RBDOOM 3 BFG"
+#define SAVE_PATH						"\\id Software\\KJDOOM 3 BFG"
 
-#define ENGINE_VERSION					"RBDOOM 3 BFG 1.6.0"	// printed in console
+#define ENGINE_VERSION					"KJDOOM 3 BFG 1.6.0"	// printed in console
 // RB end
 
 // DG begin
@@ -80,7 +80,7 @@ If you have questions concerning this license or the applicable additional terms
 // RB begin
 // Default base path (used only if none could be found)
 #ifdef __APPLE__
-	#define DEFAULT_BASEPATH				"/Applications/RBDoom3BFG.app/Contents/Resources"
+	#define DEFAULT_BASEPATH				"/Applications/KJDoom3BFG.app/Contents/Resources"
 #else
 	#define DEFAULT_BASEPATH				"/usr/share/games/doom3bfg"
 #endif

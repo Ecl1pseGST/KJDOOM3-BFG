@@ -285,13 +285,13 @@ if(MSVC)
 			COMPILE_FLAGS "/wd4244 /wd4267 /wd4996"
 			)
 
-    add_executable(rbdmap ${MC_SOURCES_ALL} ${MC_INCLUDES_ALL})
-	add_dependencies(rbdmap idlib  ${ISPC_TEXCOMP_LIBRARY})
-	target_link_libraries(rbdmap idlib winmm imtui-pdcurses Shlwapi ${ZLIB_LIBRARY} ${ISPC_TEXCOMP_LIBRARY})
+    add_executable(kjdmap ${MC_SOURCES_ALL} ${MC_INCLUDES_ALL})
+	add_dependencies(kjdmap idlib  ${ISPC_TEXCOMP_LIBRARY})
+	target_link_libraries(kjdmap idlib winmm imtui-pdcurses Shlwapi ${ZLIB_LIBRARY} ${ISPC_TEXCOMP_LIBRARY})
 
 	# set MSVC default debug directory on executable	
 	if(CMAKE_MAJOR_VERSION EQUAL 3 AND CMAKE_MINOR_VERSION GREATER_EQUAL 8)
-		set_target_properties(rbdmap PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
+		set_target_properties(kjdmap PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/..")
 	endif()
 	
 else()
@@ -324,17 +324,17 @@ else()
 			LIST(APPEND _compiler_FLAGS "-D${item}")
 		ENDFOREACH(item)
 
-		# SRS - USE_OPTICK not useful for rbdmap, but definition required to avoid mismatch with idlib precompiled header
+		# SRS - USE_OPTICK not useful for kjdmap, but definition required to avoid mismatch with idlib precompiled header
 		if(OPTICK)
 			LIST(APPEND _compiler_FLAGS -DUSE_OPTICK=1)
 		else()
 			LIST(APPEND _compiler_FLAGS -DUSE_OPTICK=0)
 		endif()
 
-		add_custom_target(precomp_header_rbdmap ALL
+		add_custom_target(precomp_header_kjdmap ALL
 						COMMAND ${CMAKE_CXX_COMPILER} ${_compiler_FLAGS} -x c++-header precompiled.h -o precompiled.h.gch
 						WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-						COMMENT "Creating tools/compilers/precompiled.h.gch for rbdmap"
+						COMMENT "Creating tools/compilers/precompiled.h.gch for kjdmap"
 						)
 	endif()
 
@@ -346,11 +346,11 @@ else()
 			COMPILE_FLAGS "-Wno-stringop-overread -Wno-deprecated-non-prototype -Wno-old-style-definition"
 			)
 
-	add_executable(rbdmap ${MC_SOURCES_ALL} ${MC_INCLUDES_ALL})
-	add_dependencies(rbdmap idlib ${ISPC_TEXCOMP_LIBRARY})
+	add_executable(kjdmap ${MC_SOURCES_ALL} ${MC_INCLUDES_ALL})
+	add_dependencies(kjdmap idlib ${ISPC_TEXCOMP_LIBRARY})
 
 	if (USE_PRECOMPILED_HEADERS)
-		add_dependencies(rbdmap precomp_header_rbdmap)
+		add_dependencies(kjdmap precomp_header_kjdmap)
 
 		if(WIN32)
 			set(remove_command "del")
@@ -360,16 +360,16 @@ else()
 
 		# SRS - delete precompiled header file after executable is compiled: command line build case
 		if(CMAKE_GENERATOR MATCHES "Makefiles" OR CMAKE_GENERATOR MATCHES "Ninja")
-			add_custom_target(rm_precomp_header_rbdmap ALL
+			add_custom_target(rm_precomp_header_kjdmap ALL
 					COMMAND ${remove_command} "precompiled.h.gch"
 					WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 					COMMENT "remove tools/compilers/precompiled.h.gch"
 					)
-			add_dependencies(rm_precomp_header_rbdmap rbdmap)
+			add_dependencies(rm_precomp_header_kjdmap kjdmap)
 
 		# SRS - delete precompiled header file after executable is compiled: IDE build case (e.g. Xcode)
 		else()
-			add_custom_command(TARGET rbdmap POST_BUILD
+			add_custom_command(TARGET kjdmap POST_BUILD
 					# SRS - added wildcards to remove tmp files from cmake ZERO_CHECK regeneration
 					COMMAND ${remove_command} "precompiled.h*.gch*"
 					WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -378,7 +378,7 @@ else()
 		endif()
 	endif()
 
-	target_link_libraries(rbdmap idlib ${CURSES_NCURSES_LIBRARY} ${ZLIB_LIBRARY} ${ISPC_TEXCOMP_LIBRARY})
+	target_link_libraries(kjdmap idlib ${CURSES_NCURSES_LIBRARY} ${ZLIB_LIBRARY} ${ISPC_TEXCOMP_LIBRARY})
 endif()
 	
 

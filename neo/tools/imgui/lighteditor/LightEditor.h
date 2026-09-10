@@ -68,14 +68,14 @@ public:
 
 	bool		hasLightOrigin;
 	idVec3		origin;
-	idAngles	angles;			// RBDOOM specific, saved to map as "angles"
+	idAngles	angles;			// KJDOOM specific, saved to map as "angles"
 	idVec3		scale;			// not saved to .map
 
 	idVec3		lightRadius;
 	bool		castShadows;
 	bool		skipSpecular;
 	bool		hasCenter;
-	int			lightStyle;		// RBDOOM specific, saved to map as "style"
+	int			lightStyle;		// KJDOOM specific, saved to map as "style"
 
 	LightInfo();
 

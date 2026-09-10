@@ -996,7 +996,7 @@ void idDeclManagerLocal::Init2()
 ===================
 idDeclManagerLocal::InitTool
 
-RB: only called by rbdmap
+RB: only called by kjdmap
 ===================
 */
 
@@ -2601,7 +2601,7 @@ void idDeclManagerLocal::ExportEntityDefsToTrenchBroom_f( const idCmdArgs& args 
 
 				ev.fullname = "editor_model proxymodel";
 				ev.name = "proxymodel";
-				ev.desc = "A proxy model in OBJ file format automatically set by RBDoom so it can be displayed in TrenchBroom";
+				ev.desc = "A proxy model in OBJ file format automatically set by KJDoom so it can be displayed in TrenchBroom";
 				ev.type = EVAR_MODEL;
 				evars.Append( ev );
 			}
@@ -3170,7 +3170,7 @@ void idDeclManagerLocal::ExportModelsToTrenchBroom_f( const idCmdArgs& args )
 	//fgdFile->Printf( "name(string) : \"\" : \"\"\n" );
 	fgdFile->Printf( "\t angles(string) : \"\" : \"0 0 0\"\n" );
 	fgdFile->Printf( "\tmodel(string) : \"Model Selection (ex mapobjects/model.obj)\"\n" );
-	fgdFile->Printf( "\tmodel(string) : \"\tA proxy model in OBJ file format automatically set by RBDoom so it can be displayed in TrenchBroom\"\n" );
+	fgdFile->Printf( "\tmodel(string) : \"\tA proxy model in OBJ file format automatically set by KJDoom so it can be displayed in TrenchBroom\"\n" );
 	fgdFile->Printf( "]\n\n" );
 
 	fgdFile->Printf( "@PointClass base(misc_model) = auto_generated_model : \"Entity definition for a specific model\" []\n\n" );

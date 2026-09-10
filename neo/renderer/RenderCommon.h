@@ -428,7 +428,7 @@ struct viewEntity_t
 // a viewEnvprobe contains everything that the back end needs out of an RenderEnvprobeLocal,
 // which the front end may be modifying simultaniously if running in SMP mode.
 
-// this structure will be especially helpful when we switch RBDOOM-3-BFG to forward cluster shading
+// this structure will be especially helpful when we switch KJDOOM-3-BFG to forward cluster shading
 // because then we can evaluate all viewEnvprobes properly in each pixel shader along with all other lighting information
 struct viewEnvprobe_t
 {

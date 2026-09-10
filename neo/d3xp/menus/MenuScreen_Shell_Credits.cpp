@@ -65,7 +65,7 @@ void idMenuScreen_Shell_Credits::SetupCreditList()
 
 
 	creditList.Clear();
-	creditList.Append( creditInfo_t( 3,	"RBDOOM 3 BFG EDITION" ) );
+	creditList.Append( creditInfo_t( 3,	"KJDOOM 3 BFG EDITION" ) );
 	creditList.Append( creditInfo_t() );
 	creditList.Append( creditInfo_t( 1,	"Project Owner"	) );
 	creditList.Append( creditInfo_t( 0,	"Robert Beckebans - Engine upgrades, Linux, TrenchBroom" ) );

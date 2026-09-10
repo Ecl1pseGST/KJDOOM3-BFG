@@ -106,12 +106,12 @@ enum textureFormat_t
 	FMT_R32F,			// 32 bpp
 	FMT_R11G11B10F,		// 32 bpp
 
-	// ^-- used up until RBDOOM-3-BFG 1.5 == BIMAGE_VERSION_BFG
+	// ^-- used up until KJDOOM-3-BFG 1.5 == BIMAGE_VERSION_BFG
 
 	FMT_BC6H,			// 8 bpp
 	FMT_BC7,			// 8 bpp
 
-	// ^-- introduced with RBDOOM-3-BFG 1.6 >= BIMAGE_VERSION_BC6
+	// ^-- introduced with KJDOOM-3-BFG 1.6 >= BIMAGE_VERSION_BC6
 
 	//------------------------
 	// Render targets only
@@ -247,7 +247,7 @@ typedef enum
 	TD_RGBA16S,				// RT only
 	TD_RGBA32F,				// RT only
 	TD_HDR_LIGHTPROBE,		// RB: 2D HDR octahedron probes stored as R11G11B10F in v1.3 - v1.5 and BC6 now
-	// ^-- used up until RBDOOM-3-BFG 1.5
+	// ^-- used up until KJDOOM-3-BFG 1.5
 	TD_HDRI,				// RB: R11G11B10F or BC6
 	// RB end
 	TD_R32F,				// RT only
@@ -266,7 +266,7 @@ typedef enum
 	CF_PANORAMA,	// RB: latlong encoded HDRI panorama typically used by Substance or Blender
 	CF_2D_ARRAY,	// not a cube map but not a single 2d texture either
 	CF_2D_PACKED_MIPCHAIN, // usually 2d but can be an octahedron, packed mipmaps into single 2d texture atlas and limited to dim^2
-	// ^-- used up until RBDOOM-3-BFG 1.3
+	// ^-- used up until KJDOOM-3-BFG 1.3
 	CF_SINGLE,      // SP: A single texture cubemap. All six sides in one image.
 	CF_QUAKE1,		// RB: _ft, _bk, etc, rotated and flipped as needed before sending to GL
 } cubeFiles_t;

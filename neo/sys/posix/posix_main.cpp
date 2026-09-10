@@ -97,7 +97,7 @@ static char exit_spawn[ 1024 ];
 const char* Sys_DefaultSavePath()
 {
 #if defined(__APPLE__)
-	char* base_path = SDL_GetPrefPath( "", "RBDOOM-3-BFG" );
+	char* base_path = SDL_GetPrefPath( "", "KJDOOM-3-BFG" );
 	if( base_path )
 	{
 		savepath = base_path;
@@ -108,11 +108,11 @@ const char* Sys_DefaultSavePath()
 	const char* xdg_data_home = getenv( "XDG_DATA_HOME" );
 	if( xdg_data_home != NULL )
 	{
-		sprintf( savepath, "%s/rbdoom3bfg", xdg_data_home );
+		sprintf( savepath, "%s/kjdoom3bfg", xdg_data_home );
 	}
 	else
 	{
-		sprintf( savepath, "%s/.local/share/rbdoom3bfg", getenv( "HOME" ) );
+		sprintf( savepath, "%s/.local/share/kjdoom3bfg", getenv( "HOME" ) );
 	}
 #endif
 
@@ -1211,7 +1211,7 @@ void tty_Show()
 
 			// RB begin
 #if defined(__ANDROID__)
-			//__android_log_print(ANDROID_LOG_DEBUG, "RBDoom3_DEBUG", "%s", buf);
+			//__android_log_print(ANDROID_LOG_DEBUG, "KJDoom3_DEBUG", "%s", buf);
 #endif
 			// RB end
 
@@ -1583,7 +1583,7 @@ void Sys_DebugPrintf( const char* fmt, ... )
 	va_end( argptr );
 	msg[sizeof( msg ) - 1] = '\0';
 
-	__android_log_print( ANDROID_LOG_DEBUG, "RBDoom3_Debug", msg );
+	__android_log_print( ANDROID_LOG_DEBUG, "KJDoom3_Debug", msg );
 #else
 	va_list argptr;
 
@@ -1598,7 +1598,7 @@ void Sys_DebugPrintf( const char* fmt, ... )
 void Sys_DebugVPrintf( const char* fmt, va_list arg )
 {
 #if defined(__ANDROID__)
-	__android_log_vprint( ANDROID_LOG_DEBUG, "RBDoom3_Debug", fmt, arg );
+	__android_log_vprint( ANDROID_LOG_DEBUG, "KJDoom3_Debug", fmt, arg );
 #else
 	tty_Hide();
 	vprintf( fmt, arg );
@@ -1617,7 +1617,7 @@ void Sys_Printf( const char* fmt, ... )
 	va_end( argptr );
 	msg[sizeof( msg ) - 1] = '\0';
 
-	__android_log_print( ANDROID_LOG_DEBUG, "RBDoom3", msg );
+	__android_log_print( ANDROID_LOG_DEBUG, "KJDoom3", msg );
 #else
 	va_list argptr;
 
@@ -1632,7 +1632,7 @@ void Sys_Printf( const char* fmt, ... )
 void Sys_VPrintf( const char* fmt, va_list arg )
 {
 #if defined(__ANDROID__)
-	__android_log_vprint( ANDROID_LOG_DEBUG, "RBDoom3", fmt, arg );
+	__android_log_vprint( ANDROID_LOG_DEBUG, "KJDoom3", fmt, arg );
 #else
 	tty_Hide();
 	vprintf( fmt, arg );

@@ -1,4 +1,4 @@
-This file documents the use of a joystick/gamepad under Linux with RBDoom3-BFG.
+This file documents the use of a joystick/gamepad under Linux with KJDoom3-BFG.
 Joystick support has been tested with an XBox 360 wireless and a
 Logitech F710 wireless gamepads, but in theory should work with any XBox 360
 compatible gamepad, either wireless or wired/USB.
@@ -40,15 +40,15 @@ The program jstest allows you to check if your joystick works OK:
 Every time you press a button or move an axis you should see the changes printed on
 the screen. Press CTRL+C to end jstest.
 
-No matter how many joysticks you have, RBDoom3-BFG only uses the first 
+No matter how many joysticks you have, KJDoom3-BFG only uses the first 
 joystick named /dev/input/js0.
 
-b) Make sure RBDoom3-BFG detects and is able to use your joystick.
+b) Make sure KJDoom3-BFG detects and is able to use your joystick.
 
-Execute RBDoom3-BFG in a console/terminal to see the messages printed there. If
+Execute KJDoom3-BFG in a console/terminal to see the messages printed there. If
 your joystick is correctly detected you should see something like this:
 
- $ ./RBDoom3BFG
+ $ ./KJDoom3BFG
 
  ... lots of text ...
 
@@ -70,7 +70,7 @@ your joystick is correctly detected you should see something like this:
 If the number of detected joysticks is 0 and none is opened check again
 a) and make sure the file /dev/input/js0 is there (for example, if you
 are using a wireless joystick make sure the gamepad is ON and not
-in sleeping mode when you run RBDoom3-BFG) and that you have permissions
+in sleeping mode when you run KJDoom3-BFG) and that you have permissions
 to read that file (for example, in Debian users that want to use the 
 joystick must be added to the group input).
 
@@ -111,7 +111,7 @@ Apendix A) Doom3 joystick key names and key bindings
 This is a list of the supported key/axis names. Note that the names of the
 buttons are only valid for the XBox 360 wireless gamepad. Other gamepads
 may have different names depending on the gamepad layout and/or more buttons
-available so you can map more actions. Also note that RBDoom3-BFG treats 
+available so you can map more actions. Also note that KJDoom3-BFG treats 
 the back triggers like buttons rather that axes.
 
 JOY1  (A button)

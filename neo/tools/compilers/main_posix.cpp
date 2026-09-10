@@ -1354,8 +1354,8 @@ void idCommonLocal::UpdateScreen( bool captureToImage, bool releaseMouse )
 		ImGui::SetNextWindowSize( wSize, ImGuiCond_Always );
 	}
 
-	//idStr title = va( "RBDMAP version %s %s", ENGINE_VERSION, BUILD_STRING );
-	idStr title = va( "RBDMAP version %s %s %s %s", ENGINE_VERSION, BUILD_STRING, ID__DATE__, ID__TIME__ );
+	//idStr title = va( "KJDMAP version %s %s", ENGINE_VERSION, BUILD_STRING );
+	idStr title = va( "KJDMAP version %s %s %s %s", ENGINE_VERSION, BUILD_STRING, ID__DATE__, ID__TIME__ );
 	ImGui::Begin( title.c_str(), nullptr,
 				  ImGuiWindowFlags_NoCollapse |
 				  ImGuiWindowFlags_NoResize |
@@ -1392,7 +1392,7 @@ void idCommonLocal::UpdateScreen( bool captureToImage, bool releaseMouse )
 	}
 
 	ImGui::Text( " %s", stateUI.statusActiveTool.c_str() );
-	ImGui::Text( " Source code      : https://github.com/RobertBeckebans/RBDOOM-3-BFG" );
+	ImGui::Text( " Source code      : fork of https://github.com/RobertBeckebans/RBDOOM-3-BFG" );
 	ImGui::End();
 
 	ImGui::Render();

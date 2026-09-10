@@ -1393,7 +1393,7 @@ void idCVarSystemLocal::ListByFlags( const idCmdArgs& args, cvarFlags_t flags )
 					"listCvar -help [search string]    = list cvar descriptions\n"
 					"listCvar -type [search string]    = list cvar types\n"
 					"listCvar -flags [search string]   = list cvar flags\n"
-					"listCvar -new [search string]     = list new RBDoom vars\n"	);
+					"listCvar -new [search string]     = list new KJDoom vars\n"	);
 }
 
 /*

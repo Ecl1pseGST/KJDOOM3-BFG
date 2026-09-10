@@ -278,7 +278,7 @@ void main( PS_IN fragment, out PS_OUT result )
 
 #elif 0
 
-	// Poisson Disk with White Noise used for years int RBDOOM-3-BFG
+	// Poisson Disk with White Noise used for years int KJDOOM-3-BFG
 
 	const float2 poissonDisk[12] =
 	{

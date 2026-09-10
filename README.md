@@ -1,22 +1,8 @@
-```
-    ____   ____   ____                           _____  ____   ______ ______
-   / __ \ / __ ) / __ \ ____   ____   ____ ___  |__  / / __ ) / ____// ____/
-  / /_/ // __  |/ / / // __ \ / __ \ / __ `__ \  /_ < / __  |/ /_   / / __  
- / _, _// /_/ // /_/ // /_/ // /_/ // / / / / /___/ // /_/ // __/  / /_/ /  
-/_/ |_|/_____//_____/ \____/ \____//_/ /_/ /_//____//_____//_/     \____/   
-_______________________________________________________________________
-```
+# KJDOOM3-BFG
 
-RBDOOM-3-BFG Readme - https://github.com/RobertBeckebans/RBDOOM-3-BFG 
+KJDOOM3-BFG is a fork of [RBDOOM-3-BFG](https://github.com/RobertBeckebans/RBDOOM-3-BFG) by Robert Beckebans. This is the `KJDOOM3BFG` stage of the project: we're pushing the RBDOOM-3-BFG codebase as far as it can go as an advanced DOOM 3 source port before eventually breaking compatibility with the base game and continuing as our own standalone title.
 
-Download it from the [RBDOOM-3-BFG Mod DB Page](https://www.moddb.com/mods/rbdoom-3-bfg) 
-
-<a href="https://www.moddb.com/mods/rbdoom-3-bfg" title="View RBDOOM-3-BFG on Mod DB" target="_blank"><img src="https://button.moddb.com/popularity/medium/mods/49231.png" alt="RBDOOM-3-BFG" /></a>
-
-For discussions join the id Tech 4 Discord: https://discord.gg/Q3E9rUFnnP , #rbdoom3bfg
-
-<img src="https://i.imgur.com/nSWBSUB.png">
-
+For discussions join the id Tech 4 Discord: https://discord.gg/Q3E9rUFnnP
 
 # Table of Contents
 
@@ -25,29 +11,28 @@ This file contains the following sections:
 1. [About the Port](#about)
 2. [".plan"](#plan)
 3. [Renderer Features Explained](#render)
-4. [TrenchBroom Mapping Support](#trenchbroom)
-5. [General Notes](#notes)
-6. [License](#license)
-7. [Getting the Source Code ](#source)
-8. [Compiling on Windows](#compile_windows)
-9. [Compiling on Linux](#compile_linux)
-10. [Compiling on macOS](#compile_macos)
-11. [Installation](#installation)
-12. [New Console Variables](#console)
-13. [Bug Reports](#reports)
-14. [FAQ](#faq)
+4. [BO2-Style Movement](#bo2movement)
+5. [DarkRadiant Mapping Support](#darkradiant)
+6. [General Notes](#notes)
+7. [License](#license)
+8. [Getting the Source Code ](#source)
+9. [Compiling on Windows](#compile_windows)
+10. [Compiling on Linux](#compile_linux)
+11. [Compiling on macOS](#compile_macos)
+12. [Installation](#installation)
+13. [New Console Variables](#console)
+14. [Bug Reports](#reports)
+15. [FAQ](#faq)
 	
-
-
 
 ---
 # About the Port <a name="about"></a>
 
-`RBDOOM-3-BFG is a modernization effort of DOOM-3-BFG.`
+`KJDOOM-3-BFG is a modernization effort of DOOM-3-BFG.`
 
-RBDOOM-3-BFG is based on DOOM-3-BFG and the goal of this port is to bring DOOM-3-BFG up to latest technology in 2025 making it closer to Doom 2016 while still remaining a DOOM 3 port regarding the gameplay.
+KJDOOM-3-BFG is based on DOOM-3-BFG and the goal of this port is to bring DOOM-3-BFG up to latest technology making it closer to Doom 2016 while still remaining a DOOM 3 port regarding the gameplay.
 
-I started this project in 2012 and focused on making this code being future proof so other cool projects can build interesting things on top of it without the need to fix a lot of stuff first. Over 40 people all over the world contributed cool patches. Some results are:
+This fork builds on top of [RBDOOM-3-BFG](https://github.com/RobertBeckebans/RBDOOM-3-BFG), which Robert Beckebans started in 2012 and which over 40 contributors around the world have improved since. KJDOOM-3-BFG continues that work, adding its own set of gameplay and rendering features on top. Some results, old and new, are:
 
 ## Gaming / Graphics Related
 * DX12 / Vulkan support through NVRHI (NVIDIA Rendering Hardware Interface) (thanks to Stephen Pridham for major porting effort)
@@ -67,6 +52,8 @@ I started this project in 2012 and focused on making this code being future proo
 * Netcode fixes to allow multiplayer sessions to friends with +connect <ip of friend> (manual port forwarding required)
 * Classic flashlight support
 * More realistic blood effects including Screen Space Reflections
+* BO3-style flowmap water shading - see the [Flowmap Water](#flowmap) section
+* BO2-style sprint/run movement and dolphin-diving into prone - see the [BO2-Style Movement](#bo2movement) section
 
 ## Programming and Code Quality
 * Flexible build system using CMake allowing to add optional features like FFmpeg for videos or OpenAL for sound
@@ -81,15 +68,15 @@ I started this project in 2012 and focused on making this code being future proo
 * Updated idRenderLog with new markers to support RenderDoc and Nvidia's Nsight
 
 ## Modding Support
-RBDOOM-3-BFG allows mod editing and has many tiny fixes so custom content can be put into mod directories and the engine accepts it like vanilla Doom 3.
+KJDOOM-3-BFG allows mod editing and has many tiny fixes so custom content can be put into mod directories and the engine accepts it like vanilla Doom 3.
 
-* TrenchBroom Mapping Support - see more information in the TrenchBroom section
-* New PBR related material keywords like basecolormap, normalmap, rmaomap
+* DarkRadiant Mapping Support - see more information in the DarkRadiant section
+* New PBR related material keywords like basecolormap, normalmap, specularmap (Specular/Gloss) - see the [Physically Based Rendering](#render) section
 * invertGreen( normalmap.png ) material keyword to allow flipping the Y-Axis for tangent space normal maps 
 * glTF2 .glb model support for static and skinned models (thanks to Harrie van Ginneken)
-* Standalone `rbdmap.exe` BSP compiler that has the aas navigation compiler included
+* Standalone `kjdmap.exe` BSP compiler that has the aas navigation compiler included
 * Changed dmap to support compiling maps straight from glTF2 .glb models instead of .map files using a new polygon based workflow
-* Wavefront OBJ model support to make it easier getting static models from Blender/Maya/3D Studio Max into TrenchBroom
+* Wavefront OBJ model support to make it easier getting static models from Blender/Maya/3D Studio Max into a map editor
 * Added in-engine Flash debugging tools and new console variables
 * Added support for Mikkelsen tangent space standard for new assets (thanks to Stephen Pridham)
 * Bumped the static vertex cache limit of 31 MB to roughly ~ 64 MB to help with some custom models and maps by the Doom 3 community
@@ -100,20 +87,19 @@ RBDOOM-3-BFG allows mod editing and has many tiny fixes so custom content can be
 * Reworked virtual filesystem so .resources and .pk4 archives in mod directories have a higher priority than in base/
 * Native C++ AI & Weapons framework instead of Doomscript in the IcedHellfire mod by Justin Marshall (`mods/icedhellfire` Git branch)
 
-
 If you want to start mod from a directory, you should first specify your mod directory adding the following command to the launcher:
 
 "+set fs_game modDirectoryName"
 
-so it would end up looking like: RBDoom3BFG +set fs_game modDirectoryName
+so it would end up looking like: KJDoom3BFG +set fs_game modDirectoryName
 
-IMPORTANT: RBDOOM-3-BFG does not support old Doom 3 modifications that include sourcecode modifications in binary form (.dll)
-You can fork RBDOOM-3-BFG and create a new renamed binary that includes all required C++ game code modifications. 
+IMPORTANT: KJDOOM-3-BFG does not support old Doom 3 modifications that include sourcecode modifications in binary form (.dll)
+You can fork KJDOOM-3-BFG and create a new renamed binary that includes all required C++ game code modifications. 
 
 ---
 # ".plan" <a name="plan"></a>
 
-If you want to see what is planned or in progress in a Trello/Kanban style manner look here: [RBDOOM-3-BFG projects](https://github.com/RobertBeckebans/RBDOOM-3-BFG/projects)
+If you want to see what is planned or in progress in a Trello/Kanban style manner look at this project's GitHub Projects board.
 
 ---
 # Renderer Features Explained <a name="render"></a>
@@ -128,15 +114,11 @@ PBR allows artists to create textures that are based on real world measured colo
 
 ***This fork uses a Specular/Gloss (CryEngine-style) PBR workflow by default, replacing upstream RBDOOM-3-BFG's Roughness/Metallic (Unreal-style) workflow.*** Classic Doom 3 Blinn-Phong content is automatically improved by an approximation pass rather than requiring reauthoring - see [docs/PBR_MATERIALS.md](docs/PBR_MATERIALS.md) for the full reference, including the exact material keywords, channel layouts, and how the `makeMaterials` auto-import tool decides which path a given texture set uses.
 
-Adding PBR is a requirement to make the new content look the same in RBDOOM-3-BFG as in Blender 3.x with Cycles or Eevee and Substance Designer. PBR became the standard material authoring since 2014. With RBDOOM-3-BFG modders can work with modern tools and expect that their content looks as expected.
+Adding PBR is a requirement to make the new content look the same in KJDOOM-3-BFG as in Blender 3.x with Cycles or Eevee and Substance Designer. PBR became the standard material authoring since 2014. With KJDOOM-3-BFG modders can work with modern tools and expect that their content looks as expected.
 
 Specialized rendering paths for skin, clothes and vegetation will be in future releases.
 
-<img src="https://i.imgur.com/DqTEbzU.jpg" width="384"> <img src="https://media.moddb.com/images/mods/1/50/49231/rbdoom-3-bfg-20210409-221842-001.png" width="384">
-
 ## PBR Texture format
-
-<img src="https://i.imgur.com/j8nYYls.png" width="640">
 
 In Doom 3 a classic simple materials looks like this:
 ```
@@ -189,16 +171,14 @@ Doom 3 BFG is a big game. Doom 3, Resurrection of Evil and Lost Missions sum up 
 I needed a good automatic solution that fixes the pitch black areas without destroying the original look and feel of the game.
 I also needed to add environment probes for each room so PBR materials can actually reflect the environment.
 
-So RBDOOM-3-BFG comes with 2 systems to achieve this and both are automatic approaches so everything can be achieved in a reasonable amount of time.
+So KJDOOM-3-BFG comes with 2 systems to achieve this and both are automatic approaches so everything can be achieved in a reasonable amount of time.
 The first system are environment probes which are placed into the center of the rooms. They can also be manually tweaked by adding env_probe entities in the maps. They use L4 spherical harmonics for diffuse reflections and GGX convolved mip maps for specular reflections.
 The second system refines this by using a light grid for each room which provides a sort of a localized/improved version of the surrounding light for each corner of the room.
 
 ### Irradiance Volumes aka Light Grids
 
-RBDOOM-3-BFG 1.3.0 brings back the Quake 3 light grid but this time the grid points feature spherical harmonics encoded as octahedrons and it can be evaluated per pixel. This means it can be used on any geometry and serves as an irradiance volume.
+KJDOOM-3-BFG 1.3.0 brings back the Quake 3 light grid but this time the grid points feature spherical harmonics encoded as octahedrons and it can be evaluated per pixel. This means it can be used on any geometry and serves as an irradiance volume.
 Unlike Quake 3 this isn't radiosity which is limited to diffuse only reflections. The diffuse reflectivity is built using all kinds of incoming light: diffuse, specular and emissive (sky, light emitting GUIs, VFX).
-
-<img src="https://i.imgur.com/DKoBaP6.png" width="384"> <img src="https://i.imgur.com/Yrhh28g.png" width="384">
 
 Lightgrids can be baked after loading the map and by typing:
 
@@ -212,31 +192,24 @@ bakeLightGrids [<switches>...]
 
 This will generate a ***.lightgrid*** file next to your .map file and it will also store a light grid atlas for each BSP area under ***env/maps/<path/to/your/map/>***
 
-<img src="https://i.imgur.com/HeXnVLs.jpg" width="640">
-
 Limit is 16384 by default and means the maximum number of light grid points in a single light grid.
 Quake 3 had one light grid that streched over the entire map and distributed lighting every 64 x 64 x 128 units by default.
 If the maps were too big then q3map2 made the default grid size broader like 80 x 80 x 144, 96 x 96 x 160 and so on until the maximum number of light grid points was reached.
 
 The Quake 3 approach wouldn't work with Doom 3 because the maps are too big and it would result in up to 800k probes for some maps or the grid density would very coarse.
 
-RBDOOM-3-BFG uses the bounding size of the BSP portal areas and puts smaller light grids into those BSP areas.
-
-<img src="https://i.imgur.com/pTR06dH.png" width="640">
+KJDOOM-3-BFG uses the bounding size of the BSP portal areas and puts smaller light grids into those BSP areas.
 
 This way we can maintain a good grid density and avoid wasting storage because of light grid points that are in empty space.
 
 > But what is an Irradiance Volume or Light Grid exactly?
 
-It tells each model or lit pixel how the indirect diffuse lighting is coming from any direction. The Probulator page by Yuri O'Donnell has some good examples:
+It tells each model or lit pixel how the indirect diffuse lighting is coming from any direction. The Probulator page by Yuri O'Donnell has some good examples of captured panorama lighting versus its Level 4 Spherical Harmonics (Irradiance) reconstruction.
 
-Left: The captured view using a panorama layout. Right: The Diffuse lighting using Level 4 Spherical Harmonics aka Irradiance.
-<img src="https://i.imgur.com/4i52c4k.png" width="384"> <img src="https://i.imgur.com/Qq2HYuK.png" width="384">
-
-Now think of this for each of the grid points in RBDOOM-3-BFG. If a model is placed between those probes the lighting will be interpolated by the nearest 8 grid points similar like in Quake 3.
+Now think of this for each of the grid points in KJDOOM-3-BFG. If a model is placed between those probes the lighting will be interpolated by the nearest 8 grid points similar like in Quake 3.
 
 Quake 3 only stored the dominant light direction, the average light color of that direction and an ambient color term for each grid point.
-In RBDOOM-3-BFG you basically can have the diffuse lighting information for **any** world space direction instead.
+In KJDOOM-3-BFG you basically can have the diffuse lighting information for **any** world space direction instead.
 This is a way more advanced technique.
 
 ### Image Based Lighting and Environment Probes
@@ -258,64 +231,26 @@ For artists this basically means if you increase the roughness in your material 
 
 ### Fallback for Missing Data
 
-If you haven't downloaded the additional baked light data from the [RBDOOM-3-BFG ModDB Page](https://www.moddb.com/mods/rbdoom-3-bfg) and just run RBDOOM-3-BFG.exe with the required DLLs (or you built it yourself) it will use an internal fallback.
-RBDOOM-3-BFG.exe has one prebaked environment probe that is compiled into the executable.
+If you haven't downloaded the additional baked light data from the KJDOOM-3-BFG download page (wherever you're distributing built releases) and just run KJDOOM-3-BFG.exe with the required DLLs (or you built it yourself) it will use an internal fallback.
+KJDOOM-3-BFG.exe has one prebaked environment probe that is compiled into the executable.
 
-<img src="https://i.imgur.com/Q9ONWaq.jpg" width="384"> <img src="https://i.imgur.com/tM0aEIV.png" width="384"> 
-
-It's the light data from the Mars City 1 lobby in the screenshot above. Using this data for the entire game is inacurrate but a better compromise than using a fixed global light direction and some sort of Rim lighting hack like in version 1.2.0.
+It's the light data from the Mars City 1 lobby. Using this data for the entire game is inacurrate but a better compromise than using a fixed global light direction and some sort of Rim lighting hack like in version 1.2.0.
 The default irradiance / radiance data gives the entire game a warmer look and it fits for being on Mars all the time.
 
-
-### Some Examples of Indirect Lighting
-
-<img src="https://i.imgur.com/DqTEbzU.jpg" width="384"> <img src="https://media.moddb.com/images/mods/1/50/49231/rbdoom-3-bfg-20210409-221842-001.png" width="384">
-
-Single spot light render with direct lighting only
-
-<img src="https://i.imgur.com/IRfNeoF.png" width="384"> 
-
-Single spot light render causing indirect light bounce using the new irradiance light grid in RBDOOM-3-BFG combined with SSAO
-
-<img src="https://media.moddb.com/images/mods/1/50/49231/rbdoom-3-bfg-20210510-144932-005.png" width="384">
-
-`Raytraced` reference in Blender 2.83 with Cycles raytracing
-
-<img src="https://media.moddb.com/images/mods/1/50/49231/test_radiosity2_2.png" width="384"> 
-
-Left: No global illumination. Ambient is pitch black like in original Doom 3. Right: Extra ambient pass for global illumination with r_forceAmbient 0.5.
-
-<img src="https://i.imgur.com/LRJBJwV.png" width="384"> <img src="https://i.imgur.com/GPD2aIr.png" width="384">
-
 <!--
-<img src="https://i.imgur.com/PVAXGui.png" width="384"> <img src="https://i.imgur.com/NleLuWY.png" width="384">
 
-<img src="https://i.imgur.com/vxAgY2S.png" width="384"> <img src="https://i.imgur.com/8avH7DY.png" width="384">
-
-<img src="https://i.imgur.com/KESmZld.png" width="384"> <img src="https://i.imgur.com/lHc7Pb9.png" width="384">
 -->
-<img src="https://i.imgur.com/qIq1xPi.png" width="384"> <img src="https://i.imgur.com/tGoceNP.png" width="384">
-
-<img src="https://i.imgur.com/45YCeSf.png" width="384"> <img src="https://i.imgur.com/GBDbml1.png" width="384">
 
 <!--
 Some examples that show additional environment lighting on all assets.
-
-<img src="https://i.imgur.com/xBPa2Y8.png" width="384"> <img src="https://i.imgur.com/MCjwFE7.png" width="384">
-
 
 ## HDR
 
 Left: Wrong original Blinn-Phong in sRGB gamma space. Right: Gamma correct HDR rendering in linear RBG + ACES Film Tonemapping 
 
-<img src="https://i.imgur.com/z5GRIFa.png" width="384"> <img src="https://i.imgur.com/4WJGNzX.png" width="384">
-
-<img src="https://i.imgur.com/6R42aoG.png" width="384"> <img src="https://i.imgur.com/A7VLpRM.png" width="384">
-
 ## Screen Space Ambient Occlusion
 r_useSSAO 1 darkens the corners of the scene and also removes too much ambient added by the Global Illumination.
 
-<img src="https://i.imgur.com/AP2tBVd.png" width="384"> <img src="https://i.imgur.com/dJ1dY4X.png" width="384">
 """
 -->
 ## Filmic Post Processing
@@ -324,37 +259,47 @@ If you enable it with r_useFilmicPostFX 1 then you play DOOM 3 BFG the optics of
 It adds chromatic abberation and filmic dithering using Blue Noise.
 The effect is heavy and is usually aimed in Film production to mix real camera footage with CG generated content.
 
-Dithering demonstration: left side is quantized to 3 bits for each color channel. Right side is also only 3 bits but dithered with chromatic Blue Noise. The interesting fact about the dithering here is shown in the upper debug bands.
-The first top band is the original signal. The second shows just 8 blocks and if you dither the those blocks with Blue Noise then it is close to the original signal which is surprising.
+Dithering demonstration (quantized to 3 bits per color channel, with and without chromatic Blue Noise dithering): the interesting fact about the dithering here is shown in the debug bands - the top band is the original signal, and dithering just 8 blocks with Blue Noise gets surprisingly close to it.
 
-<img src="https://i.imgur.com/QJv2wH2.png" width="384"> <img src="https://i.imgur.com/MaXqld4.png" width="384">
+## Flowmap Water <a name="flowmap"></a>
 
+KJDOOM-3-BFG adds a BO3-style flowmap water shader (`waterFlow.vs.hlsl` / `waterFlow.ps.hlsl`) for material authors who want moving water (rivers, waterfalls, sewage flows) instead of the classic static/scrolling water surfaces.
 
-# TrenchBroom Mapping Support <a name="trenchbroom"></a>
+A flowmap material samples three textures: a color/tint map, a plain (non-packed-gloss) normal map, and a flowmap whose RG channels are remapped from `[0,1]` storage into a `[-1,1]` direction vector. That direction drives two time-offset UV distortions of the color and normal maps; sampling both phases and cross-fading between them hides the seam that a single continuously-scrolling UV would otherwise show every time it wraps around. This is the standard "flow map" technique popularized by Valve's 2010 GDC water talk and used in most modern flowing-water shaders, including Black Ops 3's.
 
-<img src="https://i.imgur.com/3sUxOZi.jpg" width="640">
+Reflection/refraction reuses the same `_currentRender` screen-space distortion technique as the heathaze/glass materials elsewhere in the engine, perturbed by the flowed normal map and blended with a Fresnel term. Gloss and tint strength aren't texture channels here - since BO3's water gloss barely varies per-material and source colormaps typically ship as a family of intensity variants, both are exposed as per-material vertex parameters instead of needing their own texture channels.
 
-***The goal of the TrenchBroom support is to make mapping for RBDOOM-3-BFG as easy as for Quake 1.***
+See `base/materials/mod_water.mtr` for a working example material template.
 
-Mapping for Doom 3 BFG using TrenchBroom requires an extended unofficial build that is bundled with the official RBDOOM-3-BFG 7z package.
-You can find the customized TrenchBroomBFG version under tools/trenchbroom/.
+## BO2-Style Movement <a name="bo2movement"></a>
 
-More information about this custom TrenchBroomBFG and the source code is here:
+KJDOOM-3-BFG replaces classic DOOM 3's always-walk/hold-to-run pace with a Black Ops 2-style run/sprint system, aimed at bringing player movement closer to a modern Call of Duty feel.
 
-https://github.com/RobertBeckebans/TrenchBroomBFG
+**Run and sprint.** `pm_walkspeed` (default 180) is now the default move speed, and `pm_runspeed` (default 280, 1.5x) is the speed while holding Run. Sprinting is time-limited: `pm_sprintTime` (default 4s) controls how long the player can sprint continuously before the sprint meter runs out, and `pm_sprintRechargeTime` (default 4s) controls how long a fully-depleted meter takes to recharge while not sprinting. `pm_sprintUnlimited` disables meter depletion entirely - a stand-in for an eventual Marathon/Stamin-Up-style perk.
 
-Doom 3 BFG also requires some extensions in order to work with TrenchBroom. 
-The Quake 1/2/3 communities already adopted the Valve 220 .map format in the BSP compilers and I did the same with dmap in RBDOOM-3-BFG.
+**Dolphin diving.** Holding Crouch while sprinting for at least `pm_diveholdtime` (default 0.15s) triggers a dolphin dive into prone instead of a regular crouch, launching the player forward with `pm_diveimpulse` (default 140) velocity. `pm_divetime` (default 0.4s) is how long the dive-to-prone torso transition takes before the weapon becomes fire-eligible again. `pm_divegraceperiod` (default 0.5s) covers the case where a jump legitimately drops the sprint state mid-air for a few frames, so a dive can still trigger shortly after leaving the ground.
 
-### TrenchBroomBFG speficic Changes
-* idMapFile and dmap were changed to support the Valve 220 .map format to aid mapping with TrenchBroom
-* Added exportFGD `[nomodels]` console command which exports all def/*.def entityDef declarations to base/_tb/fgd/ as Forge Game Data files. TrenchBroom has native support to read those files https://developer.valvesoftware.com/wiki/FGD.
-If the nomodels argument is not given then it will also export all needed models by entity declarations to base/_tb/ as Wavefront OBJ files.
-* Support ***angles*** keyword again for TrenchBroom like in Quake 3
-* Added cmd convertMapToValve220 `<map>`
-* Added cmd exportImagesToTrenchBroom which decompresses and saves all .bimage images to _tb/*.png files
-* Added cmd exportModelsToTrenchBroom which saves all .base|.blwo|.bmd5mesh models to _tb/*.obj files
+**Prone/crawling.** `pm_proneheight` (default 20) sets the player's bounding-box height while prone, `pm_pronerate` (default 0.87) is how long the view takes to transition from crouching to prone, and `pm_crawlspeed` (default 60) is movement speed while prone.
 
+All of the above are `CVAR_NETWORKSYNC` so they stay consistent between clients in multiplayer.
+
+---
+# DarkRadiant Mapping Support <a name="darkradiant"></a>
+
+***The goal of the DarkRadiant support is to make mapping for KJDOOM-3-BFG as painless as it already is for other idTech 4 games.***
+
+[DarkRadiant](https://github.com/codereader/DarkRadiant) is a full-featured, actively maintained level editor originally built for idTech 4 (Doom 3 / Quake 4) modding by The Dark Mod community. Unlike TrenchBroom, it understands the native idTech 4 `.map` format directly, so KJDOOM-3-BFG doesn't need any special `.map` conversion step - dmap reads DarkRadiant's maps as-is.
+
+DarkRadiant also reads `def/*.def` entityDef declarations and `.mtr` material declarations natively through its own idTech 4 game definition, so entity and texture browsing works out of the box without an FGD export step. `.md5mesh` models are likewise readable directly, so most of what the old TrenchBroom pipeline needed console commands to convert isn't necessary here.
+
+### Getting Started
+1. Download and install DarkRadiant from https://github.com/codereader/DarkRadiant/releases.
+2. Point DarkRadiant's game configuration at your KJDOOM-3-BFG `base/` folder.
+3. Open or create a `.map` file and build normally - dmap and the aas navigation compiler work the same as they always have.
+
+### Still Useful From the Old Workflow
+* `exportFGD [nomodels]` still exports `def/*.def` entityDef declarations to `base/_tb/fgd/` as Forge Game Data files, which is handy if you'd rather browse entities via FGD than DarkRadiant's native def-file support.
+* ***angles*** keyword support in idMapFile/dmap remains, for maps that use it.
 
 ---
 # General Notes <a name="notes"></a>
@@ -363,13 +308,12 @@ A short summary of the file layout:
 
 Directory                          | Description
 :--------------------------------- | :------------------------------------------------
-RBDOOM-3-BFG/base/                 | Doom 3 BFG media directory ( models, textures, sounds, maps, etc. )
-RBDOOM-3-BFG/neo/                  | RBDOOM-3-BFG source code ( renderer, game code for multiple games, OS layer, etc. )
-RBDOOM-3-BFG/build/                | Build folder for CMake
-RBDOOM-3-BFG/tools/trenchbroom     | TrenchBroomBFG level editor customized for DOOM 3 and RBDOOM-3-BFG
-RBDOOM-3-BFG/tools/bfgpakexlorer   | BFG Resource File Manager by George Kalampokis aka Mr.GK
-RBDOOM-3-BFG/tools/optick-profiler | Optick is a super-lightweight C++ profiler for Games
-RBDOOM-3-BFG/tools/runtimedeps     | Visual Studio C++ Redistributables if you have problems to start the engine or the tools
+KJDOOM-3-BFG/base/                 | Doom 3 BFG media directory ( models, textures, sounds, maps, etc. )
+KJDOOM-3-BFG/neo/                  | KJDOOM-3-BFG source code ( renderer, game code for multiple games, OS layer, etc. )
+KJDOOM-3-BFG/build/                | Build folder for CMake
+KJDOOM-3-BFG/tools/bfgpakexlorer   | BFG Resource File Manager by George Kalampokis aka Mr.GK
+KJDOOM-3-BFG/tools/optick-profiler | Optick is a super-lightweight C++ profiler for Games
+KJDOOM-3-BFG/tools/runtimedeps     | Visual Studio C++ Redistributables if you have problems to start the engine or the tools
 
 The GPL release does not contain any game data, the game data is still
 covered by the original EULA and must be obeyed as usual.
@@ -382,14 +326,13 @@ https://www.gog.com/game/doom_3_bfg_edition
 Or the game can be purchased from Steam (with DRM):
 http://store.steampowered.com/app/208200/
 
-
 ## Steam
 The Doom 3 BFG Edition GPL Source Code release does not include functionality for integrating with 
 Steam.  This includes roaming profiles, achievements, leaderboards, matchmaking, the overlay, or
 any other Steam features.
 
 ## Bink Video playback
-The RBDOOM-3-BFG Edition GPL Source Code release includes functionality for rendering Bink Videos through FFmpeg or libbinkdec.
+The KJDOOM-3-BFG Edition GPL Source Code release includes functionality for rendering Bink Videos through FFmpeg or libbinkdec.
 
 ---
 # License <a name="license"></a>
@@ -404,14 +347,11 @@ See LICENSE_EXCEPTIONS.md for all parts of the code that are not covered by the 
 
 This project's GitHub.net Git repository can be checked out through Git with the following instruction set: 
 
-	> git clone --recursive https://github.com/RobertBeckebans/RBDOOM-3-BFG.git DoomCode
+	> git clone --recursive <YOUR-KJDOOM-3-BFG-GIT-URL> DoomCode
 
 Existing repositories can be updated manually:
 
 	> git submodule update --init --recursive
-
-
-
 
 ---
 # Compiling on Windows <a name="compile_windows"></a>
@@ -429,7 +369,7 @@ You can skip this step if you compile with DX12 only by adding -DUSE_VULKAN=OFF 
 Recommended in this case is `cmake-vs2022-win64-no-ffmpeg.bat`
 
 6. Use the VS2022 solution to compile what you need:
-	`DoomCode/build/RBDoom3BFG.sln`
+	`DoomCode/build/KJDoom3BFG.sln`
 	
 
 ## Optional if you want to use FFmpeg
@@ -437,7 +377,6 @@ Recommended in this case is `cmake-vs2022-win64-no-ffmpeg.bat`
 6. Download ffmpeg-4.2.2-win64-shared.zip from https://github.com/advancedfx/ffmpeg.zeranoe.com-builds-mirror/releases
 
 7. Extract the FFmpeg DLLs to the `DoomCode/` main folder
-
 
 ---
 # Compiling on and Running on Linux <a name="compile_linux"></a>
@@ -448,7 +387,7 @@ Recommended in this case is `cmake-vs2022-win64-no-ffmpeg.bat`
 
 	As an alternative you can add `-DDXC_CUSTOM_PATH=<path-to-dxc-binary>` to the CMake options.  Please make sure to specify only the **directory path** to dxc, and don't include the binary name itself.
 
-2. You need the following dependencies in order to compile RBDoom3BFG with all features:
+2. You need the following dependencies in order to compile KJDoom3BFG with all features:
 
 	On Debian or Ubuntu:
 
@@ -471,7 +410,7 @@ Recommended in this case is `cmake-vs2022-win64-no-ffmpeg.bat`
 
 3. Checkout the source code into a new `DoomCode` directory
 
-		> git clone --recursive https://github.com/RobertBeckebans/RBDOOM-3-BFG.git DoomCode
+		> git clone --recursive <YOUR-KJDOOM-3-BFG-GIT-URL> DoomCode
 
 4. Generate the Makefiles using CMake:
 
@@ -484,9 +423,9 @@ Recommended in this case is `cmake-vs2022-win64-no-ffmpeg.bat`
 
 6. Copy the base folder of your `Steam/steamapps/common/DOOM 3 BFG Edition/base/` over to `DoomCode/base/` See also [Installation](#installation)
 
-7. Download the 7z from https://github.com/RobertBeckebans/RBDOOM-3-BFG/releases/tag/v1.6.0 and unpack the base/*.pk4 files into your `DoomCode/base/` folder
+7. Download the retail `base/*.pk4` files from your own copy of the game and unpack them into your `DoomCode/base/` folder
 
-8. Copy `DoomCode/build/RBDoom3BFG` to `DoomCode/`
+8. Copy `DoomCode/build/KJDoom3BFG` to `DoomCode/`
 
 9. Start the game in `DoomCode/`
 
@@ -495,7 +434,7 @@ Recommended in this case is `cmake-vs2022-win64-no-ffmpeg.bat`
 
 1.	Download and install Homebrew (https://brew.sh) for single architecture builds on macOS Catalina (10.15) or later, or MacPorts (https://www.macports.org/install.php) for universal architecture builds on macOS Big Sur (11.0) or later.
 
-2.	You need the following dependencies in order to compile RBDoom3BFG with all features:
+2.	You need the following dependencies in order to compile KJDoom3BFG with all features:
 
 		> brew install cmake ispc sdl2 openal-soft ffmpeg (for single arch libraries only)
 		or
@@ -507,7 +446,7 @@ Recommended in this case is `cmake-vs2022-win64-no-ffmpeg.bat`
 	
 3. Checkout the source code into a new `DoomCode` directory (now contains performance optimizations for macOS):
 
-		> git clone --recursive https://github.com/RobertBeckebans/RBDOOM-3-BFG.git DoomCode
+		> git clone --recursive <YOUR-KJDOOM-3-BFG-GIT-URL> DoomCode
 
 4. Generate the Makefiles using CMake:
 
@@ -527,23 +466,21 @@ Recommended in this case is `cmake-vs2022-win64-no-ffmpeg.bat`
 	
 	For single architecture builds (debug, release, retail) the default openal-soft paths are set for Homebrew, while for universal builds the default paths are set for MacPorts. The single architecture build scripts are now portable and automatically detect Homebrew's openal-soft path prefix for x86 and Apple Silicon.  The universal build script remains portable since MacPorts uses the same openal-soft installation path on x86 and Apple Silicon.
 	
-5. Compile RBDOOM-3-BFG targets:
+5. Compile KJDOOM-3-BFG targets:
 
 	For command line builds:
 
 		> cd ../build
 		> make -j<number of your cores>
 	
-	For Xcode builds double click on `DoomCode/xcode-<buildtype>/RBDoom3BFG.xcodeproj` and start the build. The generated Xcode project file is pre-configured with the correct targets and build settings.
+	For Xcode builds double click on `DoomCode/xcode-<buildtype>/KJDoom3BFG.xcodeproj` and start the build. The generated Xcode project file is pre-configured with the correct targets and build settings.
 
 ---
 # Installation <a name="installation"></a>
 
 ## For 99% of all users:
 
-1. Download the newest version from the [RBDOOM-3-BFG ModDB Page](https://www.moddb.com/mods/rbdoom-3-bfg) 
-
-<a href="https://www.moddb.com/mods/rbdoom-3-bfg" title="View RBDOOM-3-BFG on Mod DB" target="_blank"><img src="https://button.moddb.com/popularity/medium/mods/49231.png" alt="RBDOOM-3-BFG" /></a>
+1. Download the newest version from the KJDOOM-3-BFG download page (wherever you're distributing built releases) 
 
 2. Make a new `DoomBFG` folder
 
@@ -556,7 +493,7 @@ This should also work fine with your GOG installation.
 ---
 ## The following instructions are primarily intended for `Linux` and `macOS` users and all hackers on other operating systems.
 
-Linux users are advised to compile the engine from the Github source code and to put the `base/` data from the retail game into the `DoomCode/base/` or `$XDG_DATA_HOME/rbdoom3bfg/base` directory. macOS users are also advised to compile the engine from the Github source code but to put the `base/` data from the retail game into their `~/Library/Application Support/RBDOOM-3-BFG/base/` directory. For both Linux and macOS you must also copy the `base/*.pk4` files from the unzipped RBDOOM-3-BFG ModDB download (or the [RBDOOM-3-BFG 1.6.0 Release](https://github.com/RobertBeckebans/RBDOOM-3-BFG/releases/download/v1.6.0/RBDOOM-3-BFG-1.6.0.22-full-win64-20250510-git-ba39ba6.7z)) into your `DoomCode/base/` directory.
+Linux users are advised to compile the engine from source and to put the `base/` data from the retail game into the `DoomCode/base/` or `$XDG_DATA_HOME/kjdoom3bfg/base` directory. macOS users are also advised to compile the engine from source but to put the `base/` data from the retail game into their `~/Library/Application Support/KJDOOM-3-BFG/base/` directory. For both Linux and macOS you must also copy the retail `base/*.pk4` files into your `DoomCode/base/` directory.
 
 On Linux and macOS the easiest way to install is with SteamCMD: https://developer.valvesoftware.com/wiki/SteamCMD.
 See the description on https://developer.valvesoftware.com/wiki/SteamCMD#Linux (macOS is directly below that) on how to install SteamCMD on your system. You won't have to create a new user.
@@ -594,19 +531,18 @@ This will ensure the game and its menus are in english and don't default to some
 * set sys_lang "japanese"
 * set sys_lang "spanish"
 
-On macOS the RBDoom3BFG executable will also search for game data within an app bundle's Contents/Resources/base folder, and as a last resort, within the absolute path /Applications/RBDoom3BFG.app/Contents/Resources/base.  In addition, if you want the game to be standalone without dependencies on pre-installed dynamic libs, you can use macdylibbundler to bundle all external dylib dependencies into the app bundle (see https://github.com/auriamg/macdylibbundler or simply install via "brew install dylibbundler" or "sudo port install dylibbundler").  For example, the following command will copy all external dylib dependencies to the Contents/libs directory of the game's app bundle and adjust the rpaths within the RBDoom3BFG executable and copied dylibs.
+On macOS the KJDoom3BFG executable will also search for game data within an app bundle's Contents/Resources/base folder, and as a last resort, within the absolute path /Applications/KJDoom3BFG.app/Contents/Resources/base.  In addition, if you want the game to be standalone without dependencies on pre-installed dynamic libs, you can use macdylibbundler to bundle all external dylib dependencies into the app bundle (see https://github.com/auriamg/macdylibbundler or simply install via "brew install dylibbundler" or "sudo port install dylibbundler").  For example, the following command will copy all external dylib dependencies to the Contents/libs directory of the game's app bundle and adjust the rpaths within the KJDoom3BFG executable and copied dylibs.
 
-	> dylibbundler -od -b -x RBDoom3BFG.app/Contents/MacOS/RBDoom3BFG -d RBDoom3BFG.app/Contents/libs/
+	> dylibbundler -od -b -x KJDoom3BFG.app/Contents/MacOS/KJDoom3BFG -d KJDoom3BFG.app/Contents/libs/
 
 After running dylibbundler you may need to re-sign the modified executable and dylibs if planning to run on **Apple Silicon** machines.  Newer versions of dylibbundler now do this automatically.  The output of dylibbundler will indicate which executable and dylibs (if any) require re-signing.  This code signing step is not needed for x86-based Macs.
 
-	> codesign -s - --force RBDoom3BFG.app/Contents/libs/lib<modified-by-dylibbundler>.dylib
+	> codesign -s - --force KJDoom3BFG.app/Contents/libs/lib<modified-by-dylibbundler>.dylib
 	...
-	> codesign -s - --force RBDoom3BFG.app/Contents/MacOS/RBDoom3BFG
+	> codesign -s - --force KJDoom3BFG.app/Contents/MacOS/KJDoom3BFG
 
 ---
 # New Console Variables and Commands <a name="console"></a>
-
 
 ## Gaming Related
 Name                                   | Description
@@ -629,11 +565,9 @@ dmap `[glview]` mapfile                | DMap option that exports the BSP areas 
 bakeEnvironmentProbes `mt[num]`        | Command after loading a map. Captures all env_probe entities and stores them to disc
 bakeLightGrids [`<switches>`...]       | `<Switches>` limit[num] : max probes per BSP area (default 16384) bounce[num] : number of bounces or number of light reuse (default 1) grid( xdim ydim zdim ) : light grid size steps into each direction (default 64 64 128) mt[num] : number of threads used for baking (default max logical cores)
 exportScriptEvents                     | Command: Generates a new script/doom_events.script that reflects all registered class events in the idClass C++ system. The gamecode still needs to be extended to add the original comments of the events
-exportFGD `[nomodels]`                 | Command: Exports all entity defs to base/_tb/*.fgd for usage in convertMapToValve220 `<map>`           | 
-exportImagesToTrenchBroom              | Command: Decompresses and saves all TB relevant .bimage images to base/_tb/*.png files
-exportModelsToTrenchBroom              | Command: Saves all binarized models to base/_tb/*.obj files
-convertMapToValve220 `<map>`           | Command: Saves *_valve220.map version of the given map. This makes it editable with TrenchBroomBFG. 
-convertMapQuakeToDoom `<map>`          | Command: Expects a Quake 1 .map in the Valve220 format and does some Doom 3 specific fixes
+exportFGD `[nomodels]`                 | Command: Exports all entity defs to base/_tb/*.fgd. Mainly useful for external tools that read FGD; DarkRadiant reads def/*.def natively and doesn't need this.
+exportImagesToTrenchBroom              | Command: Decompresses and saves all .bimage images to base/_tb/*.png files. Left over from the TrenchBroom workflow; not needed for DarkRadiant, which reads images directly.
+exportModelsToTrenchBroom              | Command: Saves all binarized models to base/_tb/*.obj files. Left over from the TrenchBroom workflow; not needed for DarkRadiant, which reads .md5mesh directly.
 exportEntityDefsToBlender              | Command: Exports all entity and model defs to base/_bl/entities.json for usage in Blender before loading a map.
 exportMapToOBJ                         | Command: Convert .map file to .obj/.mtl
 swf_show                               | Cvar: Draws the bounding box of instanced Flash sprites in red and their names
@@ -642,9 +576,7 @@ makeZooMapForModels                    | Command: Makes a Source engine style zo
 
 # Bug Reports <a name="reports"></a>
 
-The best way for telling about a bug is by submitting a bug report at our GitHub bug tracker page:
-
-	https://github.com/RobertBeckebans/RBDOOM-3-BFG/issues?state=open
+The best way for telling about a bug is by submitting a bug report at this project's GitHub Issues page.
 
 If you want to report an issue with the game, you should make sure that your report includes all information useful to characterize and reproduce the bug.
 
@@ -653,9 +585,9 @@ If you want to report an issue with the game, you should make sure that your rep
 * If appropriate, send a console log, a screenshot, an strace ..
 * If you are sending a console log, make sure to enable developer output:
 
-> RBDoom3BFG.exe +set developer 1 +set logfile 2
+> KJDoom3BFG.exe +set developer 1 +set logfile 2
 
-You can find your qconsole.log on Windows in C:\Users\<your user name>\Saved Games\id Software\RBDOOM 3 BFG\base\
+You can find your qconsole.log on Windows in C:\Users\<your user name>\Saved Games\id Software\KJDOOM 3 BFG\base\
 	
 ---
 # FAQ <a name="faq"></a>
@@ -669,21 +601,14 @@ There is plenty of stuff you can learn from it like solid run & gun core gamepla
 **Q**: Why bother with the DOOM-3-BFG engine in 2025?
 **A**: The engine compiles faster than opening a project in Unity or Unreal. Maybe you just appreciate that it doesn't require more than 300 MB of RAM and 3072 MB of VRAM while running a complex game like Doom 3. Maybe it is just nice that it can run Epic's Sun Temple demo with over 230 fps @ 1080p on a Geforce 2070 Super unlike UE4.
 
-<!-- 
-<img src="https://i.imgur.com/cwwr4z5.png" width="800">
--->
-
 **Q**: Can I use this engine to make a commercial game?
-**A**: You can but don't bother me to give you free support and you probably should use Unreal Engine 4/5. I am a full time game developer and usually don't have time for any free support. I recommend that you have moderate C++ skills even if you are an artist. Technical designers (coders who became artists) might benefit most from this engine. Keep in mind that the GPL license will lock you out of the console markets because you can't use proprietary APIs covered by NDAs. However you can sell your game on Steam without problems.
+**A**: You can, though this project doesn't offer free support - you probably should use Unreal Engine 4/5 if you need vendor support. Moderate C++ skills are recommended even if you're primarily an artist; technical designers (coders who became artists) tend to get the most out of this engine. Keep in mind that the GPL license will lock you out of the console markets because you can't use proprietary APIs covered by NDAs. However you can sell your game on Steam without problems.
 
 Some people already work on total conversions and there is a community on the id Tech 4 Discord server where you can ask questions and get some support:
 https://discord.gg/Q3E9rUFnnP
 
 **Q**: How do I know what code you've changed?
-**A**: Apart from the Git log diffs, you can look for `// RB` in the source code. Many other contributors commented their changes in the same way. I enforced the usage of Astyle in this project which also makes it alot easier to compare it against other ports of DOOM-3-BFG. Simply format the other ports with Astyle like I do in neo/astyle-code.bat and you can compare the code easily in WinMerge or KDiff3.
+**A**: Apart from the Git log diffs, look for `// RB` in the source code for Robert Beckebans' original RBDOOM-3-BFG changes, and `// KJ` for changes made in this fork. Many other contributors commented their changes in the same way. Astyle formatting is enforced in this project which also makes it a lot easier to compare it against other ports of DOOM-3-BFG. Simply format the other ports with Astyle like in neo/astyle-code.bat and you can compare the code easily in WinMerge or KDiff3.
 
 **Q**: How do I open the .resource files?
 **A**: If you install this package you can start the engine, open the console and run exec extract_resources.cfg. This will create a baseref/ folder next to your base/ folder with the indidividual files like .mtr materials or .def entity declarations.
-
-#   K J D O O M 3 - B F G  
- 
