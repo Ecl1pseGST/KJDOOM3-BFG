@@ -40,7 +40,7 @@ If you have questions concerning this license or the applicable additional terms
 // RB: changed home folder so we don't break the savegame of the original game
 #define SAVE_PATH						"\\id Software\\KJDOOM 3 BFG"
 
-#define ENGINE_VERSION					"KJDOOM 3 BFG 1.6.0"	// printed in console
+#define ENGINE_VERSION					"KJDOOM 3 BFG 0.5.0"	// printed in console
 // RB end
 
 // DG begin

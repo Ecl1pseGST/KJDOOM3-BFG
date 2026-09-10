@@ -115,6 +115,21 @@ static int Sys_GetThreadName( pthread_t handle, char* namebuf, size_t buflen )
 
 /*
 ========================
+Sys_RestrictThreadToPerformanceCores
+
+KJ: The Windows CPU Sets API this is built on (SetThreadSelectedCpuSets) has
+no POSIX equivalent exposed here, and Intel's hybrid P-core/E-core scheduling
+quirk this works around is specific to how Windows' Thread Director signals
+interact with CPU Sets. Always a no-op on Linux/macOS.
+========================
+*/
+bool Sys_RestrictThreadToPerformanceCores( uintptr_t threadHandle )
+{
+	return false;
+}
+
+/*
+========================
 Sys_Createthread
 ========================
 */

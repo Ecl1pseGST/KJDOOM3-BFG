@@ -1115,6 +1115,19 @@ void idJobThread::Start( core_t core, unsigned int threadNum )
 	idStr::snPrintf( name, 16, "JLProc_%d", threadNum );
 	StartWorkerThread( name, core, THREAD_NORMAL, JOB_THREAD_STACK_SIZE );
 	// DG end
+
+	// KJ: Keep job-system worker threads off Intel E-cores/LPE-cores. Without
+	// this, a full-width submit (JOBLIST_PARALLELISM_MAX_CORES, used by the
+	// light grid / env probe bakers to spread across every logical core) ends
+	// up scheduling some of these threads onto E-cores, which sit slower and
+	// separate from the P-cores - since a job list's total time is bounded by
+	// its slowest worker, this can bottleneck an otherwise P-core-only bake
+	// and observably under-utilize the P-cores while it waits. Restricting to
+	// P-cores fixes that scaling for the baker; it's a safe no-op on AMD and
+	// non-hybrid Intel, and on ordinary gameplay job usage (jobs_numThreads
+	// defaults to 2) it simply keeps those threads on the fastest cores
+	// available, which is a fine outcome either way.
+	Sys_RestrictThreadToPerformanceCores( GetThreadHandle() );
 }
 
 /*

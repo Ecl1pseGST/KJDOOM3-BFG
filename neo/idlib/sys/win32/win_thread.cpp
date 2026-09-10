@@ -85,6 +85,238 @@ static void Sys_SetThreadName( DWORD threadID, const char* name )
 }
 
 /*
+================================================================================================
+
+	KJ: Hybrid-CPU (Intel P-core/E-core) support
+
+	This project pins WINVER/_WIN32_WINNT to 0x0501 (Windows XP) in
+	sys_includes.h, which means <windows.h> does not declare the Windows 10
+	CPU Sets API types under this build regardless of the installed SDK
+	version. Bumping that project-wide define is out of scope of this change
+	and could affect other Windows API surfaces used throughout the engine,
+	so instead the handful of types needed here are declared locally, with
+	layouts taken directly from Microsoft's published documentation for
+	SYSTEM_CPU_SET_INFORMATION (winnt.h). If _WIN32_WINNT is ever raised past
+	0x0A00 project-wide, the branch below aliases to the SDK's real
+	declarations instead of duplicating them.
+
+	The two OS functions themselves (GetSystemCpuSetInformation,
+	SetThreadSelectedCpuSets) are resolved via GetProcAddress rather than
+	linked directly - they exist in kernel32.dll on Windows 10 2004+
+	regardless of how this EXE was compiled, and GetProcAddress returning
+	NULL is exactly the "not available on this OS" signal we want, rather
+	than a load-time failure on older Windows.
+
+================================================================================================
+*/
+
+#if !defined( _WIN32_WINNT ) || _WIN32_WINNT < 0x0A00
+
+typedef enum _KJ_CPU_SET_INFORMATION_TYPE
+{
+	KJ_CpuSetInformation = 0
+} KJ_CPU_SET_INFORMATION_TYPE;
+
+typedef struct _KJ_SYSTEM_CPU_SET_INFORMATION
+{
+	DWORD						Size;
+	KJ_CPU_SET_INFORMATION_TYPE	Type;
+	union
+	{
+		struct
+		{
+			DWORD	Id;
+			WORD	Group;
+			BYTE	LogicalProcessorIndex;
+			BYTE	CoreIndex;
+			BYTE	LastLevelCacheIndex;
+			BYTE	NumaNodeIndex;
+			BYTE	EfficiencyClass;
+			union
+			{
+				BYTE AllFlags;
+				struct
+				{
+					BYTE Parked : 1;
+					BYTE Allocated : 1;
+					BYTE AllocatedToTargetProcess : 1;
+					BYTE RealTime : 1;
+					BYTE ReservedFlags : 4;
+				};
+			};
+			union
+			{
+				DWORD	Reserved;
+				BYTE	SchedulingClass;
+			};
+			DWORD64	AllocationTag;
+		} CpuSet;
+	};
+} KJ_SYSTEM_CPU_SET_INFORMATION, *PKJ_SYSTEM_CPU_SET_INFORMATION;
+
+	#define KJ_CPU_SET_INFO_TYPE_VALUE		KJ_CpuSetInformation
+
+#else
+
+typedef SYSTEM_CPU_SET_INFORMATION		KJ_SYSTEM_CPU_SET_INFORMATION;
+typedef PSYSTEM_CPU_SET_INFORMATION	PKJ_SYSTEM_CPU_SET_INFORMATION;
+
+	#define KJ_CPU_SET_INFO_TYPE_VALUE		CpuSetInformation
+
+#endif
+
+typedef BOOL( WINAPI* PFN_KJ_GetSystemCpuSetInformation )(
+	PKJ_SYSTEM_CPU_SET_INFORMATION Information,
+	ULONG BufferLength,
+	PULONG ReturnedLength,
+	HANDLE Process,
+	ULONG Flags );
+
+typedef BOOL( WINAPI* PFN_KJ_SetThreadSelectedCpuSets )(
+	HANDLE Thread,
+	const ULONG* CpuSetIds,
+	ULONG CpuSetIdCount );
+
+/*
+========================
+KJ_GetPerformanceCoreCpuSetIds
+
+Fills outIds with the CPU Set IDs of every logical processor that shares the
+highest EfficiencyClass reported by Windows. On Intel hybrid parts that's the
+P-cores - EfficiencyClass is a per-machine relative ranking, not a fixed
+constant (e.g. on a 12th/13th/14th-gen part with LPE-cores as well, ranking
+goes E < LPE... in practice LPE cores report the lowest class and E-cores sit
+below P-cores), so the highest value present is always "the fastest cores on
+this machine" regardless of exactly how many efficiency tiers it has.
+
+Returns false (leaving outIds empty) if the CPU Sets API isn't available on
+this OS, or if every logical processor shares the same EfficiencyClass (i.e.
+this isn't actually a hybrid part - AMD, non-hybrid Intel, most VMs). Both are
+expected, common outcomes, not errors.
+========================
+*/
+static bool KJ_GetPerformanceCoreCpuSetIds( idList<ULONG>& outIds )
+{
+	outIds.Clear();
+
+	HMODULE kernel32 = GetModuleHandleW( L"kernel32.dll" );
+	if( !kernel32 )
+	{
+		return false;
+	}
+
+	PFN_KJ_GetSystemCpuSetInformation pGetSystemCpuSetInformation =
+		( PFN_KJ_GetSystemCpuSetInformation )GetProcAddress( kernel32, "GetSystemCpuSetInformation" );
+	if( !pGetSystemCpuSetInformation )
+	{
+		// Windows 10 < 1903, or Windows 7/8 - API doesn't exist. Not an error.
+		return false;
+	}
+
+	ULONG bytesNeeded = 0;
+	pGetSystemCpuSetInformation( NULL, 0, &bytesNeeded, GetCurrentProcess(), 0 );
+	if( bytesNeeded == 0 )
+	{
+		return false;
+	}
+
+	idList<byte> buffer;
+	buffer.SetNum( bytesNeeded );
+	PKJ_SYSTEM_CPU_SET_INFORMATION info = ( PKJ_SYSTEM_CPU_SET_INFORMATION )buffer.Ptr();
+
+	ULONG bytesReturned = 0;
+	if( !pGetSystemCpuSetInformation( info, bytesNeeded, &bytesReturned, GetCurrentProcess(), 0 ) )
+	{
+		return false;
+	}
+
+	idList<ULONG> allIds;
+	idList<BYTE> allEfficiencyClasses;
+
+	byte* cursor = buffer.Ptr();
+	byte* end = buffer.Ptr() + bytesReturned;
+	while( cursor < end )
+	{
+		PKJ_SYSTEM_CPU_SET_INFORMATION entry = ( PKJ_SYSTEM_CPU_SET_INFORMATION )cursor;
+		if( entry->Size == 0 )
+		{
+			break;	// malformed/truncated buffer - bail rather than loop forever
+		}
+		if( entry->Type == KJ_CPU_SET_INFO_TYPE_VALUE )
+		{
+			allIds.Append( entry->CpuSet.Id );
+			allEfficiencyClasses.Append( entry->CpuSet.EfficiencyClass );
+		}
+		cursor += entry->Size;
+	}
+
+	if( allIds.Num() == 0 )
+	{
+		return false;
+	}
+
+	BYTE highestEfficiencyClass = allEfficiencyClasses[0];
+	bool isHybrid = false;
+	for( int i = 0; i < allEfficiencyClasses.Num(); i++ )
+	{
+		if( allEfficiencyClasses[i] > highestEfficiencyClass )
+		{
+			highestEfficiencyClass = allEfficiencyClasses[i];
+		}
+		if( allEfficiencyClasses[i] != allEfficiencyClasses[0] )
+		{
+			isHybrid = true;
+		}
+	}
+
+	// Every core reports the same EfficiencyClass -> not a hybrid part.
+	// Leave scheduling to the OS rather than pinning to an arbitrary subset.
+	if( !isHybrid )
+	{
+		return false;
+	}
+
+	for( int i = 0; i < allIds.Num(); i++ )
+	{
+		if( allEfficiencyClasses[i] == highestEfficiencyClass )
+		{
+			outIds.Append( allIds[i] );
+		}
+	}
+
+	return outIds.Num() > 0;
+}
+
+/*
+========================
+Sys_RestrictThreadToPerformanceCores
+========================
+*/
+bool Sys_RestrictThreadToPerformanceCores( uintptr_t threadHandle )
+{
+	if( threadHandle == 0 )
+	{
+		return false;
+	}
+
+	idList<ULONG> pcoreIds;
+	if( !KJ_GetPerformanceCoreCpuSetIds( pcoreIds ) )
+	{
+		return false;	// not a hybrid part, or API unavailable on this OS
+	}
+
+	HMODULE kernel32 = GetModuleHandleW( L"kernel32.dll" );
+	PFN_KJ_SetThreadSelectedCpuSets pSetThreadSelectedCpuSets =
+		( PFN_KJ_SetThreadSelectedCpuSets )GetProcAddress( kernel32, "SetThreadSelectedCpuSets" );
+	if( !pSetThreadSelectedCpuSets )
+	{
+		return false;	// Windows < 10 2004
+	}
+
+	return pSetThreadSelectedCpuSets( ( HANDLE )threadHandle, pcoreIds.Ptr(), ( ULONG )pcoreIds.Num() ) != FALSE;
+}
+
+/*
 ========================
 Sys_Createthread
 ========================

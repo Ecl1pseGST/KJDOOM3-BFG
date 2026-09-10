@@ -208,6 +208,19 @@ uintptr_t			Sys_CreateThread( xthread_t function, void* parms, xthreadPriority p
 void				Sys_DestroyThread( uintptr_t threadHandle );
 void				Sys_SetCurrentThreadName( const char* name );
 
+// KJ: Restricts a thread (given the handle Sys_CreateThread returned for it)
+// to run only on Intel "performance" cores, on hybrid CPUs that have a
+// P-core/E-core (and LPE-core) split - Alder Lake, Raptor Lake, and newer.
+// Which logical processors are P-cores is queried from Windows at runtime
+// (there is no fixed index; it varies by SKU, motherboard, and BIOS), so this
+// works correctly across different hybrid Intel chips without assumptions.
+// No-op that returns false on: non-hybrid CPUs (AMD, older/non-hybrid Intel),
+// Windows versions older than 10 2004 (the underlying CPU Sets API doesn't
+// exist there), and non-Windows platforms. Callers should treat false as
+// "left to the OS scheduler," not as an error - it's the expected, harmless
+// outcome on the majority of machines this will ever run on.
+bool				Sys_RestrictThreadToPerformanceCores( uintptr_t threadHandle );
+
 void				Sys_SignalCreate( signalHandle_t& handle, bool manualReset );
 void				Sys_SignalDestroy( signalHandle_t& handle );
 void				Sys_SignalRaise( signalHandle_t& handle );
