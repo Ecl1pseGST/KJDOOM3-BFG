@@ -1532,6 +1532,62 @@ void idWeapon::UpdateFlashPosition()
 //		muzzleFlash.origin += adjustPos.x * muzzleFlash.axis[1] + adjustPos.y * muzzleFlash.axis[0] + adjustPos.z * muzzleFlash.axis[2];
 		muzzleFlash.origin += owner->GetViewBob();
 
+		// KJ: Re-aim the beam so it's centered on the crosshair at any aspect
+		// ratio, instead of following the weapon viewmodel's baked "flash"
+		// joint orientation (which was authored for one reference aspect
+		// ratio and visibly drifted off-center on wider ones).
+		//
+		// Two things had to be gotten right here, in order:
+		//
+		// 1) This can't be a plain `axis = playerViewAxis` swap. This light
+		// is a projected spotlight (flashPointLight "0" in
+		// weapon_flashlight*.def) with fixed LOCAL target/up/right vectors
+		// (flashTarget "0 0 1280", flashUp "0 640 0", flashRight "-640 0 0")
+		// that the renderer transforms by this axis. flashTarget's reach is
+		// along LOCAL Z - the "flash" joint was rigged with Z as its "point"
+		// direction, not X - a different convention from idTech4's own world
+		// axis (axis[0]=forward, axis[2]=up). Overwriting the whole axis with
+		// playerViewAxis quietly redirected the cone's real reach to
+		// playerViewAxis[2] (camera up) instead of camera forward, so the
+		// beam missed walls entirely. Fixed by rotating the joint's existing
+		// basis rigidly so its local Z points along the camera's forward,
+		// preserving whatever up/right/twist the weapon artist authored.
+		//
+		// 2) Aiming that corrected direction merely PARALLEL to the camera's
+		// forward still isn't enough: muzzleFlash.origin (from the joint)
+		// sits physically off to the side of the actual eye position. A ray
+		// parallel to the camera's forward, launched from an off-center
+		// origin, never actually crosses the crosshair's ray - it stays a
+		// constant lateral distance apart at every range, aspect ratio or
+		// not. That's a parallax problem, not an aiming-direction problem,
+		// and it's why the old joint-based orientation wasn't simply
+		// "forward" either - it had a small compensating tilt baked in that
+		// happened to cancel this offset at one reference aspect ratio
+		// (masking the parallax there) while drifting on others (the
+		// original complaint). The actual fix is convergence: aim from the
+		// real origin TOWARD a point out along the camera's true forward
+		// ray, rather than merely parallel to it. That cancels the origin's
+		// lateral offset at the chosen distance while staying aspect-ratio-
+		// independent, since the target point is built purely from
+		// playerViewOrigin/playerViewAxis.
+		const float FLASHLIGHT_CONVERGE_DISTANCE = 512.0f;
+		idVec3 convergePoint = playerViewOrigin + playerViewAxis[0] * FLASHLIGHT_CONVERGE_DISTANCE;
+		idVec3 desiredForward = convergePoint - muzzleFlash.origin;
+		desiredForward.Normalize();
+
+		idVec3 jointForward = muzzleFlash.axis[2];
+		idVec3 rotAxis = jointForward.Cross( desiredForward );
+		float rotAxisLen = rotAxis.Normalize();
+		if( rotAxisLen > 0.0001f )
+		{
+			float angle = RAD2DEG( idMath::ACos( jointForward * desiredForward ) );
+			idMat3 deltaRot = idRotation( vec3_origin, rotAxis, angle ).ToMat3();
+			muzzleFlash.axis = deltaRot * muzzleFlash.axis;
+		}
+		// else: jointForward and desiredForward are already parallel (or
+		// exactly opposite, with no well-defined rotation axis either way) -
+		// leave muzzleFlash.axis as the joint's own transform.
+
 //		static idAngles baseAdjustAng = ang_zero;	//idAngles( 0.0f, 10.0f, 0.0f );
 		idAngles adjustAng = /*baseAdjustAng +*/ idAngles( fraccos * yscale, 0.0f, fraccos2 * pscale );
 		idAngles bobAngles = owner->GetViewBobAngles();

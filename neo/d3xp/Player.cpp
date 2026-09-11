@@ -5756,14 +5756,6 @@ void idPlayer::Weapon_Combat()
 		// sprint is cancelling, so the player genuinely has to stop
 		// sprinting before a shot goes off, rather than firing and
 		// cancelling sprint simultaneously on the same tick.
-		// KJ: TEMPORARY DEBUG
-		if( ( usercmd.buttons & BUTTON_ATTACK ) && IsLocallyControlled() )
-		{
-			gameLocal.Printf( "[SPRINT DEBUG] ATTACK pressed - wasSprintingLastFrame=%d weaponGone=%d willFire=%d\n",
-							   wasSprintingLastFrame, weaponGone,
-							   ( !weaponGone && !wasSprintingLastFrame ) ? 1 : 0 );
-		}
-
 		if( ( usercmd.buttons & BUTTON_ATTACK ) && !weaponGone && !wasSprintingLastFrame )
 		{
 			FireWeapon();
@@ -8209,26 +8201,8 @@ void idPlayer::AdjustSpeed()
 	// (distinct swim-stroke animation, can't fire while swim-sprinting,
 	// same as underwater combat otherwise being allowed - BO3-style) is
 	// planned as a followup, not implemented here.
-	// KJ: TEMPORARY DEBUG - remove once the transition-edge bug is found.
-	// Prints every tick with the actual values, gated to the locally
-	// controlled player only so it doesn't spam for every client in MP.
-	if( IsLocallyControlled() )
-	{
-		gameLocal.Printf( "[SPRINT DEBUG] isSprinting=%d wasSprintingLastFrame=%d BUTTON_RUN=%d weaponValid=%d sprintMeter=%.3f unlimited=%d exhausted=%d time=%d\n",
-						   isSprinting, wasSprintingLastFrame,
-						   ( usercmd.buttons & BUTTON_RUN ) ? 1 : 0,
-						   weapon.GetEntity() != NULL,
-						   sprintMeter,
-						   pm_sprintUnlimited.GetBool(),
-						   sprintExhausted,
-						   gameLocal.time );
-	}
-
 	if( isSprinting != wasSprintingLastFrame && weapon.GetEntity() )
 	{
-		// KJ: TEMPORARY DEBUG
-		gameLocal.Printf( "[SPRINT DEBUG] TRANSITION FIRED - isSprinting=%d\n", isSprinting );
-
 		if( isSprinting )
 		{
 			weapon.GetEntity()->LowerWeaponForSprint();

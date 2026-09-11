@@ -193,6 +193,7 @@ extern idCVar	pm_proneheight;
 extern idCVar	pm_proneviewheight;
 extern idCVar	pm_pronerate;
 extern idCVar	pm_crawlspeed;
+extern idCVar	pm_stopspeed;
 extern idCVar	pm_diveimpulse;
 extern idCVar	pm_divetime;
 // KJ: pm_diveholdtime - how long BUTTON_CROUCH must be held while sprinting before

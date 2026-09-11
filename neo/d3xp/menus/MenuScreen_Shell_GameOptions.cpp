@@ -112,8 +112,8 @@ void idMenuScreen_Shell_GameOptions::Initialize( idMenuHandler* data )
 
 	control = new( TAG_SWF ) idMenuWidget_ControlButton();
 	control->SetOptionType( OPTION_SLIDER_TOGGLE );
-	control->SetLabel( "#str_04102" );	// Always Run
-	control->SetDataSource( &systemData, idMenuDataSource_GameSettings::GAME_FIELD_ALWAYS_SPRINT );
+	control->SetLabel( "Toggle Sprint" );	// KJ: off = hold to sprint, on = press once to latch sprint on/off
+	control->SetDataSource( &systemData, idMenuDataSource_GameSettings::GAME_FIELD_TOGGLE_SPRINT );
 	control->SetupEvents( DEFAULT_REPEAT_TIME, options->GetChildren().Num() );
 	control->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_PRESS_FOCUSED, options->GetChildren().Num() );
 	options->AddChild( control );
@@ -299,7 +299,7 @@ bool idMenuScreen_Shell_GameOptions::HandleAction( idWidgetAction& action, const
 extern idCVar ui_autoSwitch;
 extern idCVar ui_autoReload;
 extern idCVar aa_targetAimAssistEnable;
-extern idCVar in_alwaysRun;
+extern idCVar in_toggleRun;
 extern idCVar g_checkpoints;
 extern idCVar ng_classicFlashlight;
 extern idCVar g_muzzleFlash;
@@ -327,7 +327,7 @@ void idMenuScreen_Shell_GameOptions::idMenuDataSource_GameSettings::LoadData()
 	fields[ GAME_FIELD_AUTO_SWITCH ].SetBool( ui_autoSwitch.GetBool() );
 	fields[ GAME_FIELD_AUTO_RELOAD ].SetBool( ui_autoReload.GetBool() );
 	fields[ GAME_FIELD_AIM_ASSIST ].SetBool( aa_targetAimAssistEnable.GetBool() );
-	fields[ GAME_FIELD_ALWAYS_SPRINT ].SetBool( in_alwaysRun.GetBool() );
+	fields[ GAME_FIELD_TOGGLE_SPRINT ].SetBool( in_toggleRun.GetBool() );
 	fields[ GAME_FIELD_CLASSIC_FLASHLIGHT ].SetBool( ng_classicFlashlight.GetBool() );
 	fields[ GAME_FIELD_MUZZLE_FLASHES ].SetBool( g_muzzleFlash.GetBool() );
 	originalFields = fields;
@@ -348,7 +348,7 @@ void idMenuScreen_Shell_GameOptions::idMenuDataSource_GameSettings::CommitData()
 	ui_autoSwitch.SetBool( fields[ GAME_FIELD_AUTO_SWITCH ].ToBool() );
 	ui_autoReload.SetBool( fields[ GAME_FIELD_AUTO_RELOAD ].ToBool() );
 	aa_targetAimAssistEnable.SetBool( fields[ GAME_FIELD_AIM_ASSIST ].ToBool() );
-	in_alwaysRun.SetBool( fields[ GAME_FIELD_ALWAYS_SPRINT ].ToBool() );
+	in_toggleRun.SetBool( fields[ GAME_FIELD_TOGGLE_SPRINT ].ToBool() );
 	ng_classicFlashlight.SetBool( fields[ GAME_FIELD_CLASSIC_FLASHLIGHT ].ToBool() );
 	g_muzzleFlash.SetBool( fields[ GAME_FIELD_MUZZLE_FLASHES ].ToBool() );
 
@@ -408,7 +408,7 @@ bool idMenuScreen_Shell_GameOptions::idMenuDataSource_GameSettings::IsDataChange
 		return true;
 	}
 
-	if( fields[ GAME_FIELD_ALWAYS_SPRINT ].ToBool() != originalFields[ GAME_FIELD_ALWAYS_SPRINT ].ToBool() )
+	if( fields[ GAME_FIELD_TOGGLE_SPRINT ].ToBool() != originalFields[ GAME_FIELD_TOGGLE_SPRINT ].ToBool() )
 	{
 		return true;
 	}

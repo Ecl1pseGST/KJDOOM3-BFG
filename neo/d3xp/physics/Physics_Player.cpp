@@ -35,7 +35,6 @@ CLASS_DECLARATION( idPhysics_Actor, idPhysics_Player )
 END_CLASS
 
 // movement parameters
-const float PM_STOPSPEED		= 100.0f;
 const float PM_SWIMSCALE		= 0.5f;
 const float PM_LADDERSPEED		= 100.0f;
 const float PM_STEPSCALE		= 1.0f;
@@ -528,7 +527,7 @@ void idPhysics_Player::Friction()
 			// if getting knocked back, no friction
 			if( !( current.movementFlags & PMF_TIME_KNOCKBACK ) )
 			{
-				control = speed < PM_STOPSPEED ? PM_STOPSPEED : speed;
+				control = speed < pm_stopspeed.GetFloat() ? pm_stopspeed.GetFloat() : speed;
 				drop += control * PM_FRICTION * frametime;
 			}
 		}

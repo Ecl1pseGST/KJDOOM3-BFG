@@ -274,7 +274,20 @@ idCVar pm_crouchrate(				"pm_crouchrate",			"0.87",			CVAR_GAME | CVAR_NETWORKSY
 idCVar pm_proneheight(				"pm_proneheight",			"20",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "height of player's bounding box while prone" );
 idCVar pm_proneviewheight(			"pm_proneviewheight",		"16",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "height of player's view while prone" );
 idCVar pm_pronerate(				"pm_pronerate",				"0.87",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "time it takes for player's view to change from crouching to prone" );
-idCVar pm_crawlspeed(				"pm_crawlspeed",			"60",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "movement speed while prone/crawling" );
+idCVar pm_crawlspeed(				"pm_crawlspeed",			"50",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "movement speed while prone/crawling" );	// KJ: was 60, then 40 (overcorrected) - splitting the difference at 50 (62.5% of pm_crouchspeed)
+// KJ: was a hardcoded constant (PM_STOPSPEED = 100) in Physics_Player.cpp,
+// left over from vanilla Doom3's speed scale where normal run speed (~113)
+// sat comfortably above it. Friction() uses max(actualSpeed, this) to decide
+// drag, specifically so releasing input snaps briskly to a stop instead of
+// sliding forever at near-zero speed - it's meant to only matter right at
+// the end of a stop, not during ordinary sustained movement. With BO2-style
+// speeds rebalanced much lower (pm_crawlspeed 50, pm_crouchspeed 80-100),
+// leaving this at 100 meant sustained crawling was ALWAYS below the floor,
+// so friction permanently overpowered acceleration and speed never actually
+// converged to pm_crawlspeed - it just continuously bled toward zero the
+// entire time. Keep this below the lowest real sustained movement speed in
+// use (currently pm_crawlspeed) or the same bug reappears for that speed.
+idCVar pm_stopspeed(				"pm_stopspeed",				"20",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "speed below which ground friction snaps the player to a stop rather than scaling with actual speed - keep below the lowest real movement speed (pm_crawlspeed) or it will fight acceleration during sustained movement at that speed" );
 idCVar pm_diveimpulse(				"pm_diveimpulse",			"140",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "forward velocity applied when dolphin-diving into prone" );
 idCVar pm_divetime(				"pm_divetime",				"0.4",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "seconds the dive-to-prone torso transition takes before the weapon becomes fire-eligible again" );
 idCVar pm_diveholdtime(			"pm_diveholdtime",			"0.15",			CVAR_GAME | CVAR_NETWORKSYNC | CVAR_FLOAT, "seconds BUTTON_CROUCH must be held while sprinting before the dive triggers - shorter than this just crouches instead" );

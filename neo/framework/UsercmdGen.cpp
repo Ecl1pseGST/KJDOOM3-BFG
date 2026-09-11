@@ -44,7 +44,6 @@ idCVar joy_dampenLook( "joy_dampenLook", "1", CVAR_BOOL | CVAR_ARCHIVE, "Do not 
 idCVar joy_deltaPerMSLook( "joy_deltaPerMSLook", "0.003", CVAR_FLOAT | CVAR_ARCHIVE, "Max amount to be added on look per MS" );
 
 idCVar in_mouseSpeed( "in_mouseSpeed", "1",	CVAR_ARCHIVE | CVAR_FLOAT, "speed at which the mouse moves", 0.25f, 4.0f );
-idCVar in_alwaysRun( "in_alwaysRun", "1", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_BOOL, "always run (reverse _speed button) - only in MP" );
 
 idCVar in_useJoystick( "in_useJoystick", "0", CVAR_ARCHIVE | CVAR_BOOL, "enables/disables the gamepad for PC use" );
 idCVar in_joystickRumble( "in_joystickRumble", "1", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_BOOL, "enable joystick rumble" );
@@ -304,7 +303,6 @@ private:
 	static idCVar	in_yawSpeed;
 	static idCVar	in_pitchSpeed;
 	static idCVar	in_angleSpeedKey;
-	static idCVar	in_toggleRun;
 	static idCVar	in_toggleCrouch;
 	static idCVar	in_toggleZoom;
 	static idCVar	sensitivity;
@@ -317,7 +315,12 @@ private:
 idCVar idUsercmdGenLocal::in_yawSpeed( "in_yawspeed", "140", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_FLOAT, "yaw change speed when holding down _left or _right button" );
 idCVar idUsercmdGenLocal::in_pitchSpeed( "in_pitchspeed", "140", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_FLOAT, "pitch change speed when holding down look _lookUp or _lookDown button" );
 idCVar idUsercmdGenLocal::in_angleSpeedKey( "in_anglespeedkey", "1.5", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_FLOAT, "angle change scale when holding down _speed button" );
-idCVar idUsercmdGenLocal::in_toggleRun( "in_toggleRun", "0", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_BOOL, "pressing _speed button toggles run on/off - only in MP" );
+// KJ: promoted from a private idUsercmdGenLocal static to a free global -
+// the options menu needs to extern-reference it, same as every other
+// menu-exposed cvar (aa_targetAimAssistEnable, ng_classicFlashlight, etc.).
+// No longer MP-only: BO2-style sprint runs identically in SP and MP, so the
+// hold-vs-toggle preference should too.
+idCVar in_toggleRun( "in_toggleRun", "0", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_BOOL, "pressing the sprint button toggles sprint on/off instead of requiring it to be held" );
 idCVar idUsercmdGenLocal::in_toggleCrouch( "in_toggleCrouch", "0", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_BOOL, "pressing _movedown button toggles player crouching/standing" );
 idCVar idUsercmdGenLocal::in_toggleZoom( "in_toggleZoom", "0", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_BOOL, "pressing _zoom button toggles zoom on/off" );
 idCVar idUsercmdGenLocal::sensitivity( "sensitivity", "5", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_FLOAT, "mouse view sensitivity" );
@@ -431,7 +434,7 @@ void idUsercmdGenLocal::AdjustAngles()
 {
 	float speed = MS2SEC( 16 );
 
-	if( toggled_run.on || ( in_alwaysRun.GetBool() && common->IsMultiplayer() ) )
+	if( toggled_run.on )	// KJ: no longer OR'd with in_alwaysRun-in-MP - see CmdButtons()
 	{
 		speed *= in_angleSpeedKey.GetFloat();
 	}
@@ -1075,7 +1078,14 @@ void idUsercmdGenLocal::CmdButtons()
 	}
 
 	// check the run button
-	if( toggled_run.on || ( in_alwaysRun.GetBool() && common->IsMultiplayer() ) )
+	// KJ: BUTTON_RUN now purely reflects whether the player is actually
+	// holding (or has toggled, via in_toggleRun) the Run key. It used to
+	// also get forced on unconditionally in MP via in_alwaysRun - that
+	// predates BO2-style sprint and directly fought it: AdjustSpeed()
+	// reads this same bit to decide isSprinting, so forcing it permanently
+	// on meant multiplayer was always "holding Run," permanently draining
+	// the sprint meter and blocking anything gated on not-sprinting.
+	if( toggled_run.on )
 	{
 		cmd.buttons |= BUTTON_RUN;
 	}
@@ -1108,7 +1118,6 @@ void idUsercmdGenLocal::InitCurrent()
 	memset( &cmd, 0, sizeof( cmd ) );
 	cmd.impulseSequence = impulseSequence;
 	cmd.impulse = impulse;
-	cmd.buttons |= ( in_alwaysRun.GetBool() && common->IsMultiplayer() ) ? BUTTON_RUN : 0;
 }
 
 /*
@@ -1126,7 +1135,7 @@ void idUsercmdGenLocal::MakeCurrent()
 	{
 		// update toggled key states
 		toggled_crouch.SetKeyState( ButtonState( UB_MOVEDOWN ), in_toggleCrouch.GetBool() );
-		toggled_run.SetKeyState( ButtonState( UB_SPEED ), in_toggleRun.GetBool() && common->IsMultiplayer() );
+		toggled_run.SetKeyState( ButtonState( UB_SPEED ), in_toggleRun.GetBool() );
 		toggled_zoom.SetKeyState( ButtonState( UB_ZOOM ), in_toggleZoom.GetBool() );
 
 		// get basic movement from mouse

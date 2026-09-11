@@ -74,7 +74,6 @@ function(compile_shaders)
                                    --platform=DXIL
                                    --binaryBlob
                                    --outputExt=.bin
-                                   --serial				# KJ: diagnostic - disable multi-threading to test for a parallel-compile crash in ShaderMake
                                    -I ${SHADER_INCLUDE_DIR}
                                    ${CFLAGS}
                                    --compiler=${DXC_PATH})
@@ -98,7 +97,6 @@ function(compile_shaders)
                                    --platform=DXBC
                                    --binaryBlob
                                    --outputExt=.bin
-                                   --serial				# KJ: diagnostic - disable multi-threading to test for a parallel-compile crash in ShaderMake
                                    -I ${SHADER_INCLUDE_DIR}
                                    ${CFLAGS}
                                    --compiler=${FXC_PATH})
@@ -123,7 +121,6 @@ function(compile_shaders)
                                    --binaryBlob
                                    --outputExt=.bin
                                    --retryCount=20				# SRS - allow 20 retries to recover from any macOS/linux command shell failures during multi-threaded compilation
-                                   --serial				# KJ: diagnostic - disable multi-threading to test for a parallel-compile crash in ShaderMake
                                    -I ${SHADER_INCLUDE_DIR}
                                    -D SPIRV
                                    ${CFLAGS}
