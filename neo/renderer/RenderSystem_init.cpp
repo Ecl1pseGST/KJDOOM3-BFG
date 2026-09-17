@@ -210,6 +210,7 @@ idCVar r_showTris( "r_showTris", "0", CVAR_RENDERER | CVAR_INTEGER, "enables wir
 idCVar r_showSurfaceInfo( "r_showSurfaceInfo", "0", CVAR_RENDERER | CVAR_BOOL, "show surface material name under crosshair" );
 idCVar r_showNormals( "r_showNormals", "0", CVAR_RENDERER | CVAR_FLOAT, "draws wireframe normals" );
 idCVar r_showMemory( "r_showMemory", "0", CVAR_RENDERER | CVAR_BOOL, "print frame memory utilization" );
+idCVar r_showOcclusion( "r_showOcclusion", "0", CVAR_RENDERER | CVAR_BOOL | CVAR_NEW, "KJ: print masked occlusion culling counters (mocTests/mocCulledSurfaces/mocCulledLights/mocMicroSec)" );
 idCVar r_showCull( "r_showCull", "0", CVAR_RENDERER | CVAR_BOOL, "report sphere and box culling stats" );
 idCVar r_showAddModel( "r_showAddModel", "0", CVAR_RENDERER | CVAR_BOOL, "report stats from tr_addModel" );
 idCVar r_showDepth( "r_showDepth", "0", CVAR_RENDERER | CVAR_BOOL, "display the contents of the depth buffer and the depth range" );
@@ -327,6 +328,13 @@ idCVar r_psxVertexJitter( "r_psxVertexJitter", "0.5", CVAR_RENDERER | CVAR_FLOAT
 idCVar r_psxAffineTextures( "r_psxAffineTextures", "1", CVAR_RENDERER | CVAR_FLOAT | CVAR_NEW, "" );
 
 idCVar r_useMaskedOcclusionCulling( "r_useMaskedOcclusionCulling", "1", CVAR_RENDERER | CVAR_BOOL | CVAR_NOCHEAT | CVAR_NEW, "SIMD optimized software culling by Intel" );
+idCVar r_occlusionTreeMinEntities( "r_occlusionTreeMinEntities", "2000", CVAR_RENDERER | CVAR_INTEGER | CVAR_NEW,
+									"KJ: portal areas with more entityRefs than this build a loose octree instead of a flat scan. "
+									"Deliberately high — must be raised or overridden explicitly for testing, never reachable by ordinary stock content." );
+idCVar r_occlusionTreeMinVolume( "r_occlusionTreeMinVolume", "500000000", CVAR_RENDERER | CVAR_FLOAT | CVAR_NEW,
+								  "KJ: portal areas larger than this (world units^3) build a loose octree regardless of entity count. "
+								  "8000000 (the original default) was crossed by ordinary Alpha Labs 2 geometry — do not lower this without "
+								  "testing on a dedicated map first, per r_showOcclusion and the rollout plan in INTEGRATION_NOTES.md." );
 // RB end
 
 const char* fileExten[4] = { "tga", "png", "jpg", "exr" };

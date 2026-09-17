@@ -31,6 +31,7 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "RenderCommon.h"
+#include "AreaOcclusionTree.h"
 
 /*
 =================================================================================
@@ -102,6 +103,12 @@ void R_FreeEntityDefDerivedData( idRenderEntityLocal* def, bool keepDecals, bool
 		// unlink from the area
 		ref->areaNext->areaPrev = ref->areaPrev;
 		ref->areaPrev->areaNext = ref->areaNext;
+
+		// KJ: mirror removal into the area's occlusion tree, if it has one active
+		if( ref->area != NULL && ref->area->useOcclusionTree && ref->area->occlusionTree != NULL )
+		{
+			ref->area->occlusionTree->RemoveEntity( ref );
+		}
 
 		// put it back on the free list for reuse
 		def->world->areaReferenceAllocator.Free( ref );

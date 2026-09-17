@@ -31,6 +31,7 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "RenderCommon.h"
+#include "AreaOcclusionTree.h"
 
 // if we hit this many planes, we will just stop cropping the
 // view down, which is still correct, just conservative
@@ -403,6 +404,110 @@ void idRenderWorldLocal::AddAreaViewLights( int areaNum, const portalStack_t* ps
 
 /*
 ===================
+AddAreaViewEntities_Tree
+
+KJ: Same per-entity checks as AddAreaViewEntities(), but sources entities from
+the area's loose octree instead of the flat entityRefs list, so a large area
+gets hierarchical early-out on node bounds rather than an O(n) linear walk.
+Only called for areas where portalArea_t::useOcclusionTree is true.
+===================
+*/
+struct occTreeViewContext_t
+{
+	idRenderWorldLocal* world;
+	const idRenderWorldLocal::portalStack_t* ps;
+};
+
+// KJ: standard "positive vertex" AABB-vs-plane test, corrected for this codebase's
+// actual convention — portalStack_t's own comment states "positive side is outside
+// the visible frustum" (see above), the opposite of the usual convention. So the
+// box is culled only when even its most-negative-direction corner (the one least
+// likely to be outside) still comes out positive.
+static bool BoundsCulledByPlane( const idBounds& bounds, const idPlane& plane )
+{
+	idVec3 p;
+	p.x = ( plane.Normal().x >= 0.0f ) ? bounds[0].x : bounds[1].x;
+	p.y = ( plane.Normal().y >= 0.0f ) ? bounds[0].y : bounds[1].y;
+	p.z = ( plane.Normal().z >= 0.0f ) ? bounds[0].z : bounds[1].z;
+	return plane.Distance( p ) > 0.0f;
+}
+
+static bool AddAreaViewEntities_TreeVisit( const occTreeNode_t* node, void* userData )
+{
+	occTreeViewContext_t* ctx = ( occTreeViewContext_t* )userData;
+
+	// node-level early out: if this node's loose bounds don't survive the portal
+	// stack's frustum planes, none of its contents can either — skip the subtree
+	// entirely instead of visiting every leaf item individually.
+	for( int i = 0; i < ctx->ps->numPortalPlanes; i++ )
+	{
+		if( BoundsCulledByPlane( node->bounds, ctx->ps->portalPlanes[i] ) )
+		{
+			return false;	// don't descend into this node's children
+		}
+	}
+
+	// KJ: process this node's own items unconditionally — InsertItemRecursive() places
+	// an item on whatever node it lands on, which is often an INTERIOR node (anything
+	// that doesn't fit entirely inside one child octant, e.g. a large room-filling
+	// entity). Restricting this to leaves silently dropped exactly that kind of item —
+	// on a small map, that's the world geometry itself, hence a fully black scene with
+	// culling counters still moving (the smaller items in real leaves still worked).
+	for( occTreeItem_t* item = node->items; item != NULL; item = item->next )
+	{
+		if( item->type != OCC_ITEM_ENTITY || item->ref == NULL )
+		{
+			continue;
+		}
+
+		idRenderEntityLocal* entity = item->ref->entity;
+
+		if( r_singleEntity.GetInteger() >= 0 && r_singleEntity.GetInteger() != entity->index )
+		{
+			continue;
+		}
+
+		R_FreeEntityDefFadedDecals( entity, tr.viewDef->renderView.time[0] );
+
+		if( !r_skipSuppress.GetBool() )
+		{
+			if( entity->parms.suppressSurfaceInViewID
+					&& entity->parms.suppressSurfaceInViewID == tr.viewDef->renderView.viewID )
+			{
+				continue;
+			}
+			if( entity->parms.allowSurfaceInViewID
+					&& entity->parms.allowSurfaceInViewID != tr.viewDef->renderView.viewID )
+			{
+				continue;
+			}
+		}
+
+		if( ctx->world->CullEntityByPortals( entity, ctx->ps ) )
+		{
+			continue;
+		}
+
+		viewEntity_t* vEnt = R_SetEntityDefViewEntity( entity );
+		vEnt->scissorRect.Union( ctx->ps->rect );
+	}
+
+	return true;	// keep descending into children
+}
+
+void idRenderWorldLocal::AddAreaViewEntities_Tree( int areaNum, const portalStack_t* ps )
+{
+	portalArea_t* area = &portalAreas[ areaNum ];
+
+	occTreeViewContext_t ctx;
+	ctx.world = this;
+	ctx.ps = ps;
+
+	area->occlusionTree->TraverseFrontToBack( tr.viewDef->renderView.vieworg, AddAreaViewEntities_TreeVisit, &ctx );
+}
+
+/*
+===================
 AddAreaToView
 
 This may be entered multiple times with different planes
@@ -415,7 +520,15 @@ void idRenderWorldLocal::AddAreaToView( int areaNum, const portalStack_t* ps )
 	portalAreas[ areaNum ].viewCount = tr.viewCount;
 
 	// add the models and lights, using more precise culling to the planes
-	AddAreaViewEntities( areaNum, ps );
+	// KJ: large/open areas use the loose octree instead of the flat entityRefs scan
+	if( portalAreas[ areaNum ].useOcclusionTree && portalAreas[ areaNum ].occlusionTree != NULL )
+	{
+		AddAreaViewEntities_Tree( areaNum, ps );
+	}
+	else
+	{
+		AddAreaViewEntities( areaNum, ps );
+	}
 	AddAreaViewLights( areaNum, ps );
 	AddAreaViewEnvprobes( areaNum, ps ); // RB
 }

@@ -31,6 +31,7 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "RenderCommon.h"
+#include "AreaOcclusionTree.h"
 
 
 /*
@@ -1047,10 +1048,58 @@ void idRenderWorldLocal::AddWorldModelEntities()
 		R_DeriveEntityData( def );
 
 		portalArea_t* area = &portalAreas[i];
-		AddEntityRefToArea( def, area );
 
-		// RB: remember BSP area AABB for quick lookup later
+		// KJ: decide whether this area is large enough to need the occlusion tree
+		// instead of the flat entityRefs scan, and build it, BEFORE calling
+		// AddEntityRefToArea() below. AddEntityRefToArea()'s InsertEntity hook only
+		// fires when useOcclusionTree is already true and occlusionTree is already
+		// allocated — doing this after the call meant the world model's own entity
+		// ref was linked into the flat list but silently never inserted into the
+		// tree, so AddAreaViewEntities_Tree() (which only walks the tree) could
+		// never find it: the area's own geometry never entered viewEntitys at all,
+		// which is a complete explanation for a fully black scene regardless of
+		// anything else being correct.
 		area->globalBounds = def->globalReferenceBounds;
+
+		int existingRefCount = 0;
+		for( areaReference_t* ref = area->entityRefs.areaNext; ref != &area->entityRefs; ref = ref->areaNext )
+		{
+			existingRefCount++;
+		}
+
+		const idVec3 size = area->globalBounds[1] - area->globalBounds[0];
+		const float volume = size.x * size.y * size.z;
+
+		area->useOcclusionTree = ( existingRefCount > r_occlusionTreeMinEntities.GetInteger() )
+								  || ( volume > r_occlusionTreeMinVolume.GetFloat() );
+
+		if( area->useOcclusionTree )
+		{
+			area->occlusionTree = new( TAG_RENDER_ENTITY ) idAreaOcclusionTree();
+			area->occlusionTree->Init( area->globalBounds );
+
+			// feed this area's static world-model surfaces in as occluders, in whatever
+			// order the model lists them — TraverseFrontToBack() at submission time is
+			// what actually reorders them, not this build pass
+			idList<const modelSurface_t*> staticSurfs;
+			for( int j = 0; j < hModel->NumSurfaces(); j++ )
+			{
+				const modelSurface_t* surf = hModel->Surface( j );
+				if( surf->geometry != NULL && surf->geometry->numIndexes > 0 && surf->shader != NULL )
+				{
+					staticSurfs.Append( surf );
+				}
+			}
+			if( staticSurfs.Num() > 0 )
+			{
+				area->occlusionTree->BuildStaticFromWorldSurfaces( staticSurfs.Ptr(), staticSurfs.Num() );
+			}
+		}
+
+		// now that useOcclusionTree/occlusionTree are in their final state, this call's
+		// InsertEntity hook (see AddEntityRefToArea in RenderWorld.cpp) will correctly
+		// insert the world model's own entity into the tree when the area activates it
+		AddEntityRefToArea( def, area );
 	}
 }
 

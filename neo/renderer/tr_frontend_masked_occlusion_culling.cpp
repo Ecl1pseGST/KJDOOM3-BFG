@@ -39,6 +39,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "RenderCommon.h"
 #include "Model_local.h"
+#include "AreaOcclusionTree.h"
 
 static const float CHECK_BOUNDS_EPSILON = 1.0f;
 
@@ -116,6 +117,38 @@ two or more lights.
 ===================
 */
 #if defined(USE_INTRINSICS_SSE)
+
+/*
+===================
+R_SubmitSurfaceAsOccluder
+
+KJ: extracted from R_RenderSingleModel's inline occlusion-buffer submission so
+the tree-ordered static path (R_RenderSingleModelOcclusionTree) can call the
+exact same rasterization logic instead of a re-typed duplicate that could
+silently drift from this one. Deliberately inside the USE_INTRINSICS_SSE guard,
+same as the MaskedOcclusionCulling:: symbols it uses — this codebase targets
+non-SSE platforms too (see i_video_ps3.cpp, XA2_SoundHardware.cpp elsewhere in
+the tree), so this must not leak outside the guard the way it briefly did.
+===================
+*/
+static void R_SubmitSurfaceAsOccluder( viewEntity_t* vEntity, srfTriangles_t* tri )
+{
+	tr.pc.c_mocIndexes += tri->numIndexes;
+	tr.pc.c_mocVerts += tri->numIndexes;
+
+	R_CreateMaskedOcclusionCullingTris( tri );
+
+	idRenderMatrix mvp;
+	idRenderMatrix::Transpose( vEntity->unjitteredMVP, mvp );
+
+#if MOC_MULTITHREADED
+	tr.maskedOcclusionThreaded->SetMatrix( ( float* )&mvp[0][0] );
+	tr.maskedOcclusionThreaded->RenderTriangles( tri->mocVerts->ToFloatPtr(), tri->mocIndexes, tri->numIndexes / 3, MaskedOcclusionCulling::BACKFACE_CCW, MaskedOcclusionCulling::CLIP_PLANE_ALL );
+#else
+	tr.maskedOcclusionCulling->RenderTriangles( tri->mocVerts->ToFloatPtr(), tri->mocIndexes, tri->numIndexes / 3, ( float* )&mvp[0][0], MaskedOcclusionCulling::BACKFACE_CCW, MaskedOcclusionCulling::CLIP_PLANE_ALL, MaskedOcclusionCulling::VertexLayout( 16, 4, 8 ) );
+#endif
+}
+
 void R_RenderSingleModel( viewEntity_t* vEntity )
 {
 	// we will add all interaction surfs here, to be chained to the lights in later serial code
@@ -364,20 +397,7 @@ void R_RenderSingleModel( viewEntity_t* vEntity )
 			// render the BSP area surfaces and from static model entities only the occlusion surfaces to keep the tris count at minimum
 			if( model->IsStaticWorldModel() || ( shader->IsOccluder() && !gpuSkinned ) )
 			{
-				tr.pc.c_mocIndexes += tri->numIndexes;
-				tr.pc.c_mocVerts += tri->numIndexes;
-
-				R_CreateMaskedOcclusionCullingTris( tri );
-
-				idRenderMatrix mvp;
-				idRenderMatrix::Transpose( vEntity->unjitteredMVP, mvp );
-
-#if MOC_MULTITHREADED
-				tr.maskedOcclusionThreaded->SetMatrix( ( float* )&mvp[0][0] );
-				tr.maskedOcclusionThreaded->RenderTriangles( tri->mocVerts->ToFloatPtr(), tri->mocIndexes, tri->numIndexes / 3, MaskedOcclusionCulling::BACKFACE_CCW, MaskedOcclusionCulling::CLIP_PLANE_ALL );
-#else
-				tr.maskedOcclusionCulling->RenderTriangles( tri->mocVerts->ToFloatPtr(), tri->mocIndexes, tri->numIndexes / 3, ( float* )&mvp[0][0], MaskedOcclusionCulling::BACKFACE_CCW, MaskedOcclusionCulling::CLIP_PLANE_ALL, MaskedOcclusionCulling::VertexLayout( 16, 4, 8 ) );
-#endif
+				R_SubmitSurfaceAsOccluder( vEntity, tri );
 			}
 #if 0
 			else
@@ -520,6 +540,126 @@ void R_RenderSingleModel( viewEntity_t* vEntity )
 		}
 	}
 }
+
+/*
+===================
+R_RenderSingleModelOcclusionTree
+
+KJ: used instead of R_RenderSingleModel() for a static-world-model vEntity whose
+area activated the occlusion tree. Does the same minimal per-entity setup
+(matrices, visibility check) as R_RenderSingleModel(), then submits occluders
+in the tree's front-to-back order instead of raw dmap surface order, calling
+the same R_SubmitSurfaceAsOccluder() helper so the actual rasterization can't
+drift between the two paths.
+
+This function ONLY affects MOC buffer submission — confirmed by checking that
+tr_frontend_addmodels.cpp's real rendering pass independently recomputes
+vEntity->mvp/modelMatrix itself (see its own idRenderMatrix::Multiply call),
+so it does not depend on anything this function does or skips.
+===================
+*/
+struct occTreeSubmitContext_t
+{
+	viewEntity_t* vEntity;
+};
+
+static bool R_SubmitOccluderTreeVisit( const occTreeNode_t* node, void* userData )
+{
+	occTreeSubmitContext_t* ctx = ( occTreeSubmitContext_t* )userData;
+
+	// node-level early out, same CullBoundsToMVP test the original per-surface
+	// loop uses, just applied to the whole node's bounds first
+	if( idRenderMatrix::CullBoundsToMVP( ctx->vEntity->mvp, node->bounds ) )
+	{
+		return false;
+	}
+
+	// KJ: process this node's own items unconditionally, not just on leaves — see the
+	// matching fix and explanation in AddAreaViewEntities_TreeVisit (RenderWorld_portals.cpp).
+	// A large room-filling surface (floor, wall) is exactly the kind of item that lands
+	// on an interior node rather than a leaf on a small map, and was silently never
+	// submitted as an occluder before this fix.
+	for( occTreeItem_t* item = node->items; item != NULL; item = item->next )
+	{
+		if( item->type != OCC_ITEM_SURFACE || item->surf == NULL || item->shader == NULL )
+		{
+			continue;
+		}
+
+		// exact same per-surface gate as the original loop (see R_RenderSingleModel):
+		// only opaque, drawn surfaces (or explicit occluder-flagged ones) become
+		// occluders, and only if not already frustum-culled individually
+		const bool surfaceDirectlyVisible = !idRenderMatrix::CullBoundsToMVP( ctx->vEntity->mvp, item->worldBounds );
+		if( !surfaceDirectlyVisible )
+		{
+			continue;
+		}
+
+		const renderEntity_t* renderEntity = &ctx->vEntity->entityDef->parms;
+		const bool qualifies = ( item->shader->IsDrawn() && item->shader->Coverage() == MC_OPAQUE
+								  && !renderEntity->weaponDepthHack && renderEntity->modelDepthHack == 0.0f )
+								|| item->shader->IsOccluder();
+
+		if( qualifies )
+		{
+			// model->IsStaticWorldModel() is always true here by construction —
+			// every item in this tree came from BuildStaticFromWorldSurfaces(),
+			// which only ever runs on an area's static world model surfaces.
+			R_SubmitSurfaceAsOccluder( ctx->vEntity, item->surf );
+		}
+	}
+
+	return true;
+}
+
+void R_RenderSingleModelOcclusionTree( viewEntity_t* vEntity, portalArea_t* area )
+{
+	vEntity->drawSurfs = NULL;
+
+	const viewDef_t* viewDef = tr.viewDef;
+	idRenderEntityLocal* entityDef = vEntity->entityDef;
+	const renderEntity_t* renderEntity = &entityDef->parms;
+
+	// if the entity wasn't seen through a portal chain, it was added just for light shadows
+	const bool modelIsVisible = !vEntity->scissorRect.IsEmpty();
+	if( !modelIsVisible )
+	{
+		return;
+	}
+
+	idRenderModel* model = R_EntityDefDynamicModel( entityDef );
+	if( model == NULL || model->NumSurfaces() <= 0 )
+	{
+		return;
+	}
+
+	// same matrix setup as R_RenderSingleModel() — this area's world model entity
+	// never has weaponDepthHack/modelDepthHack in practice, but computed the same
+	// way for correctness rather than assuming that stays true forever
+	vEntity->modelDepthHack = renderEntity->modelDepthHack;
+	vEntity->weaponDepthHack = renderEntity->weaponDepthHack;
+	vEntity->skipMotionBlur = renderEntity->skipMotionBlur;
+
+	memcpy( vEntity->modelMatrix, entityDef->modelMatrix, sizeof( vEntity->modelMatrix ) );
+	R_MatrixMultiply( entityDef->modelMatrix, viewDef->worldSpace.modelViewMatrix, vEntity->modelViewMatrix );
+
+	idRenderMatrix viewMat;
+	idRenderMatrix::Transpose( *( idRenderMatrix* )vEntity->modelViewMatrix, viewMat );
+	idRenderMatrix::Multiply( viewDef->projectionRenderMatrix, viewMat, vEntity->mvp );
+	idRenderMatrix::Multiply( viewDef->unjitteredProjectionRenderMatrix, viewMat, vEntity->unjitteredMVP );
+	if( renderEntity->weaponDepthHack )
+	{
+		idRenderMatrix::ApplyDepthHack( vEntity->mvp );
+	}
+	if( renderEntity->modelDepthHack != 0.0f )
+	{
+		idRenderMatrix::ApplyModelDepthHack( vEntity->mvp, renderEntity->modelDepthHack );
+	}
+
+	occTreeSubmitContext_t ctx;
+	ctx.vEntity = vEntity;
+	area->occlusionTree->TraverseFrontToBack( viewDef->renderView.vieworg, R_SubmitOccluderTreeVisit, &ctx );
+}
 #endif
 
 //REGISTER_PARALLEL_JOB( R_AddSingleModel, "R_AddSingleModel" );
@@ -605,7 +745,21 @@ void R_FillMaskedOcclusionBufferWithModels( viewDef_t* viewDef )
 				//continue;
 			}
 
-			R_RenderSingleModel( vEntity );
+			// KJ: static world model entities are referenced in exactly one area
+			// (see AddWorldModelEntities in RenderWorld_load.cpp) — if that area
+			// activated the occlusion tree, submit occluders in tree order instead
+			// of raw dmap surface order.
+			areaReference_t* ref = vEntity->entityDef->entityRefs;
+			portalArea_t* area = ( model->IsStaticWorldModel() && ref != NULL ) ? ref->area : NULL;
+
+			if( area != NULL && area->useOcclusionTree && area->occlusionTree != NULL )
+			{
+				R_RenderSingleModelOcclusionTree( vEntity, area );
+			}
+			else
+			{
+				R_RenderSingleModel( vEntity );
+			}
 		}
 	}
 

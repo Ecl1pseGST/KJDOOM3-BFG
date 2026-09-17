@@ -116,6 +116,9 @@ struct areaReference_t
 	RenderEnvprobeLocal*	envprobe;				// only one of entity / light / envprobe will be non-NULL
 
 	struct portalArea_s*		area;				// so owners can find all the areas they are in
+
+	void*					occTreeItem;		// KJ: opaque occTreeItem_t*, set by idAreaOcclusionTree
+	// when this area's tree is active; NULL otherwise. See AreaOcclusionTree.h.
 };
 
 
@@ -1192,6 +1195,7 @@ extern idCVar r_showLightCount;				// colors surfaces based on light count
 extern idCVar r_showShadows;				// visualize the stencil shadow volumes
 extern idCVar r_showLightScissors;			// show light scissor rectangles
 extern idCVar r_showMemory;					// print frame memory utilization
+extern idCVar r_showOcclusion;					// KJ: print masked occlusion culling counters (previously tracked but never surfaced)
 extern idCVar r_showCull;					// report sphere and box culling stats
 extern idCVar r_showAddModel;				// report stats from tr_addModel
 extern idCVar r_showSurfaces;				// report surface/light/shadow counts
@@ -1297,6 +1301,8 @@ extern idCVar r_crtCurvature;
 extern idCVar r_crtVignette;
 
 extern idCVar r_useMaskedOcclusionCulling;
+extern idCVar r_occlusionTreeMinEntities;		// KJ: area entityRef count threshold to activate the occlusion tree
+extern idCVar r_occlusionTreeMinVolume;		// KJ: area volume (world units^3) threshold to activate the occlusion tree
 
 enum RenderMode
 {

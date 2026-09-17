@@ -98,6 +98,11 @@ void idRenderSystemLocal::PrintPerformanceCounters()
 	{
 		common->Printf( "frameData: %i (%i)\n", frameData->frameMemoryAllocated.GetValue(), frameData->highWaterAllocated );
 	}
+	if( r_showOcclusion.GetBool() )	// KJ: MOC counters existed but were never surfaced anywhere
+	{
+		common->Printf( "mocTests:%i  mocCulledSurfaces:%i  mocCulledLights:%i  mocMicroSec:%i\n",
+						pc.c_mocTests, pc.c_mocCulledSurfaces, pc.c_mocCulledLights, ( int )pc.mocMicroSec );
+	}
 
 	memset( &pc, 0, sizeof( pc ) );
 	memset( &backEnd.pc, 0, sizeof( backEnd.pc ) );

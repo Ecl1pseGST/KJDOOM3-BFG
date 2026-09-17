@@ -31,6 +31,7 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "RenderCommon.h"
+#include "AreaOcclusionTree.h"
 
 #include <sys/DeviceManager.h>
 extern DeviceManager* deviceManager;
@@ -1831,6 +1832,8 @@ void idRenderWorldLocal::AddEntityRefToArea( idRenderEntityLocal* def, portalAre
 	tr.pc.c_entityReferences++;
 
 	ref->entity = def;
+	ref->occTreeItem = NULL;	// KJ: areaReferenceAllocator doesn't zero pool memory; must be explicit
+	// or idAreaOcclusionTree::UpdateEntity() will read this as a garbage item pointer
 
 	// link to entityDef
 	ref->ownerNext = def->entityRefs;
@@ -1842,6 +1845,12 @@ void idRenderWorldLocal::AddEntityRefToArea( idRenderEntityLocal* def, portalAre
 	ref->areaPrev = area->entityRefs.areaPrev;
 	ref->areaNext->areaPrev = ref;
 	ref->areaPrev->areaNext = ref;
+
+	// KJ: mirror insertion into the area's occlusion tree, if it has one active
+	if( area->useOcclusionTree && area->occlusionTree != NULL )
+	{
+		area->occlusionTree->InsertEntity( ref );
+	}
 }
 
 /*

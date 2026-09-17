@@ -125,6 +125,9 @@ typedef struct portalArea_s
 	areaReference_t	entityRefs;		// head/tail of doubly linked list, may change
 	areaReference_t	lightRefs;		// head/tail of doubly linked list, may change
 	areaReference_t	envprobeRefs;	// head/tail of doubly linked list, may change
+
+	bool				useOcclusionTree;	// KJ: set once in AddWorldModelEntities() from ShouldUseOcclusionTree()
+	class idAreaOcclusionTree* occlusionTree;	// KJ: NULL unless useOcclusionTree
 } portalArea_t;
 
 
@@ -304,6 +307,7 @@ public:
 
 	bool					CullEntityByPortals( const idRenderEntityLocal* entity, const portalStack_t* ps );
 	void					AddAreaViewEntities( int areaNum, const portalStack_t* ps );
+	void					AddAreaViewEntities_Tree( int areaNum, const portalStack_t* ps );	// KJ
 
 	bool					CullLightByPortals( const idRenderLightLocal* light, const portalStack_t* ps );
 	void					AddAreaViewLights( int areaNum, const portalStack_t* ps );
